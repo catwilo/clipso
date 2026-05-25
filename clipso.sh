@@ -152,7 +152,7 @@ fi
 
 if [ "$IS_STDIN" = true ]; then
     info "reading from stdin"
-    if [ "$_NO_SPINNER" = "0" ] && [ -w /dev/tty ]; then
+    if [ "${CLIPSO_NO_SPINNER:-0}" = "0" ] && [ "$_NO_SPINNER" = "0" ] && [ -w /dev/tty ]; then
         # spinner on /dev/tty; cat reads stdin synchronously first
         _spin_idle() {
             local s='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏' i=0
