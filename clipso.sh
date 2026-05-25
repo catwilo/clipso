@@ -51,8 +51,9 @@ die()  { printf "${RED}[ERROR]${RESET} %s\n" "$*" >&2; exit 1; }
 # ─────────────────────────────────────────────────────────────────────────────
 
 SSH_PORT=22
+_NO_SPINNER=0
 
-while getopts ":p:nh" opt; do
+while getopts ":p:nqh" opt; do
     case "$opt" in
         p) SSH_PORT="$OPTARG" ;;
         n)
@@ -66,6 +67,7 @@ while getopts ":p:nh" opt; do
 ' "$CLIPSO_NUMBERS" > "$CLIPSO_CFG"
             ok "saved: $msg ($CLIPSO_CFG)"; exit 0
             ;;
+        q) _NO_SPINNER=1 ;;
         h)
             printf 'clipso — copy local files, remote files, or stdin to clipboard\n\n'
             printf 'usage:\n'
@@ -150,7 +152,7 @@ fi
 
 if [ "$IS_STDIN" = true ]; then
     info "reading from stdin"
-    if [ -w /dev/tty ]; then
+    if [ "$_NO_SPINNER" = "0" ] && [ -w /dev/tty ]; then
         # spinner on /dev/tty; cat reads stdin synchronously first
         _spin_idle() {
             local s='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏' i=0
