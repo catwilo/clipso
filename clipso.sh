@@ -53,6 +53,17 @@ die()  { printf "${RED}[ERROR]${RESET} %s\n" "$*" >&2; exit 1; }
 SSH_PORT=22
 _NO_SPINNER=0
 
+# ── paste mode — read from local cache (mesh clipboard) ─────────────────────
+if [ "${1:-}" = "--paste" ] || [ "${1:-}" = "-P" ]; then
+    _paste_cache="${XDG_CACHE_HOME:-$HOME/.cache}/clipso/last"
+    if [ ! -f "$_paste_cache" ]; then
+        printf '[ERROR] no clipboard cache found — nothing copied yet via clipso\n' >&2
+        exit 1
+    fi
+    cat "$_paste_cache"
+    exit 0
+fi
+
 while getopts ":p:nqh" opt; do
     case "$opt" in
         p) SSH_PORT="$OPTARG" ;;
@@ -76,6 +87,7 @@ while getopts ":p:nqh" opt; do
             printf '  clipso -p <port> user@host:/f remote with a custom SSH port\n'
             printf '  clipso -                       read stdin\n'
             printf '  echo hello | clipso            read piped stdin\n'
+            printf '  clipso --paste / -P            paste from mesh clipboard cache\n'
             exit 0
             ;;
         :) die "option -p requires a port number" ;;
@@ -340,6 +352,10 @@ do_copy() {
             copy_osc52
         fi
     fi
+    # cache for mesh clipboard paste-back (all nodes, all backends)
+    _cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/clipso"
+    mkdir -p "$_cache_dir"
+    cp "$TMP" "$_cache_dir/last"
 }
 
 paginate() {
