@@ -223,6 +223,58 @@ fi
 
 [ -s "$TMP" ] || { printf "VOID" > "$TMP"; }
 
+# ─────────────────────────────────────────────────────────────────────────────
+# privacy check — warn before copying sensitive content
+# ─────────────────────────────────────────────────────────────────────────────
+
+_mask_line() {
+    echo "$1" \
+        | sed 's/[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}/x.x.x.x/g' \
+        | sed 's/[0-9a-fA-F]\{2\}:[0-9a-fA-F]\{2\}:[0-9a-fA-F]\{2\}:[0-9a-fA-F]\{2\}:[0-9a-fA-F]\{2\}:[0-9a-fA-F]\{2\}/xx:xx:xx:xx:xx:xx/g' \
+        | sed 's/\(.\{100\}\).*/\1.../'
+}
+
+privacy_check() {
+    [ "${CLIPSO_PRIVACY:-1}" = "0" ] && return 0
+    local PAT_CREDS='password|passwd|secret|api_key|apikey|private_key|auth_key|bearer|access_key|token[_.][a-z]|secret[_.][a-z]'
+    local PAT_PRIV_IP='\b(10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|172\.(1[6-9]|2[0-9]|3[01])\.[0-9]{1,3}\.[0-9]{1,3}|192\.168\.[0-9]{1,3}\.[0-9]{1,3})\b'
+    local PAT_MAC='[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}'
+    local SAFE_IPS='1\.1\.1\.1|8\.8\.8\.8|8\.8\.4\.4|9\.9\.9\.9|1\.0\.0\.1'
+    local hits=0 msg=""
+
+    while IFS= read -r line; do
+        if echo "$line" | grep -qiE "$PAT_CREDS" 2>/dev/null; then
+            msg="${msg}${YELLOW}  CRED    $(_mask_line "$line")${RESET}\n"
+            hits=$((hits+1)); continue
+        fi
+        if echo "$line" | grep -qE "$PAT_PRIV_IP" 2>/dev/null; then
+            msg="${msg}${YELLOW}  PRIV-IP  $(_mask_line "$line")${RESET}\n"
+            hits=$((hits+1)); continue
+        fi
+        if echo "$line" | grep -qE "$PAT_MAC" 2>/dev/null; then
+            msg="${msg}${YELLOW}  MAC     $(_mask_line "$line")${RESET}\n"
+            hits=$((hits+1)); continue
+        fi
+        if echo "$line" | grep -qE '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' 2>/dev/null; then
+            echo "$line" | grep -qE "$PAT_PRIV_IP" && continue
+            echo "$line" | grep -qE "$SAFE_IPS"    && continue
+            msg="${msg}${YELLOW}  PUB-IP  $(_mask_line "$line")${RESET}\n"
+            hits=$((hits+1))
+        fi
+    done < "$TMP"
+
+    [ "$hits" -eq 0 ] && return 0
+
+    printf "${YELLOW}privacy: %d sensitive line(s) detected:${RESET}\n" "$hits" >&2
+    printf "$msg" >&2
+    if [ "${CLIPSO_PRIVACY_CONFIRM:-0}" != "1" ]; then
+        warn "set CLIPSO_PRIVACY_CONFIRM=1 to copy anyway, or CLIPSO_PRIVACY=0 to disable check"
+        exit 0
+    fi
+}
+
+
+
 BYTES="$(wc -c < "$TMP" | tr -d ' ')"
 MAX_BYTES=$((10 * 1024 * 1024))   # 10 MB
 PAGER_LIMIT=$((900 * 1024))        # 900 KB — paged copy threshold
@@ -387,6 +439,8 @@ paginate() {
     done
     rm -rf "$chunk_dir"
 }
+
+privacy_check
 
 if (( BYTES > PAGER_LIMIT )); then
     paginate
