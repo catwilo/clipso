@@ -42,8 +42,18 @@ info() { :; }
 CLIPSO_CFG="${XDG_CONFIG_HOME:-$HOME/.config}/clipso/config"
 [ -f "$CLIPSO_CFG" ] && source "$CLIPSO_CFG"
 CLIPSO_NUMBERS="${CLIPSO_NUMBERS:-1}"
-ok()   { printf "${GREEN}[OK]${RESET}    %s\n" "$*" >&2; }
+ok()   { printf "${GREEN}[OK]${RESET}  %s\n" "$*" >&2; }
 warn() { printf "${YELLOW}[WARN]${RESET}  %s\n" "$*" >&2; }
+_fmt_size() {
+    local b="$1"
+    if   (( b < 1024 ));    then
+        printf '%d B' "$b"
+    elif (( b < 1048576 )); then
+        printf '%d.%d KB' $(( b / 1024 )) $(( (b % 1024) * 10 / 1024 ))
+    else
+        printf '%d.%02d MB' $(( b / 1048576 )) $(( (b % 1048576) * 100 / 1048576 ))
+    fi
+}
 die()  { printf "${RED}[ERROR]${RESET} %s\n" "$*" >&2; exit 1; }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -430,15 +440,16 @@ copy_osc52() {
 # RemoteForward; the client listener pipes it into pbcopy. Robust when OSC52
 # is unavailable (e.g. macOS Terminal.app). Socket path is a shared convention.
 CLIP_SOCK="${CLIP_FORWARD_SOCK:-$HOME/.local/share/noemap/clip.sock}"
+CLIP_FORWARD_USED=0
 clip_forward_available() { [ -S "$CLIP_SOCK" ]; }
 copy_pbcopy_forward() {
     if has_cmd nc; then
         if safe_timeout 5s nc -U "$CLIP_SOCK" < "$TMP" 2>/dev/null; then
-            ok "mirrored to client clipboard (pbcopy-forward)"; return 0
+            CLIP_FORWARD_USED=1; return 0
         fi
     elif has_cmd socat; then
         if safe_timeout 5s socat - "UNIX-CONNECT:$CLIP_SOCK" < "$TMP" 2>/dev/null; then
-            ok "mirrored to client clipboard (pbcopy-forward)"; return 0
+            CLIP_FORWARD_USED=1; return 0
         fi
     fi
     return 1
@@ -517,5 +528,13 @@ else
     fi
     printf "\n"
     [ "${PRIVACY_HITS:-0}" -gt 0 ] && warn "privacy: ${PRIVACY_HITS} line(s) auto-removed — see red above"
-    ok "copied to ${CLIP_BACKEND} — ${BYTES} bytes"
+    _lines="$(wc -l < "$TMP" | tr -d ' ')"
+    _size="$(_fmt_size "$BYTES")"
+    _primary="${CLIP_BACKEND#* clipboard}"
+    _primary="${CLIP_BACKEND%% *}"
+    _backends_str="$CLIP_BACKEND"
+    if [ "${CLIP_FORWARD_USED:-0}" = "1" ] && [ -n "${CLIPSO_FORWARD_LABEL:-}" ]; then
+        _backends_str="$_backends_str · ${CLIPSO_FORWARD_LABEL}"
+    fi
+    ok "clipboard: ${_backends_str}  —  ${_lines} lines · ${_size}"
 fi
