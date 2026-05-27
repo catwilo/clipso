@@ -227,51 +227,107 @@ fi
 # privacy check — warn before copying sensitive content
 # ─────────────────────────────────────────────────────────────────────────────
 
-_mask_line() {
-    echo "$1" \
-        | sed 's/[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}/x.x.x.x/g' \
-        | sed 's/[0-9a-fA-F]\{2\}:[0-9a-fA-F]\{2\}:[0-9a-fA-F]\{2\}:[0-9a-fA-F]\{2\}:[0-9a-fA-F]\{2\}:[0-9a-fA-F]\{2\}/xx:xx:xx:xx:xx:xx/g' \
-        | sed 's/\(.\{100\}\).*/\1.../'
-}
+# privacy_check — single awk pass; zero per-line forks
+# Globals: PRIVACY_HITS (int), PRIVACY_INFO_FILE (linenum TAB tag TAB masked)
+PRIVACY_HITS=0
+PRIVACY_INFO_FILE=""
 
 privacy_check() {
     [ "${CLIPSO_PRIVACY:-1}" = "0" ] && return 0
-    local PAT_CREDS='password|passwd|secret|api_key|apikey|private_key|auth_key|bearer|access_key|token[_.][a-z]|secret[_.][a-z]'
-    local PAT_PRIV_IP='\b(10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|172\.(1[6-9]|2[0-9]|3[01])\.[0-9]{1,3}\.[0-9]{1,3}|192\.168\.[0-9]{1,3}\.[0-9]{1,3})\b'
-    local PAT_MAC='[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}'
-    local SAFE_IPS='1\.1\.1\.1|8\.8\.8\.8|8\.8\.4\.4|9\.9\.9\.9|1\.0\.0\.1'
-    local hits=0 msg=""
+    local PRIV_INFO
+    PRIV_INFO="$(mktemp "${TMPDIR:-/tmp}/clipso-priv.XXXXXX")"
+    awk '
+    function valid_ip(s,  a,n,i) {
+        n=split(s,a,"."); if(n!=4) return 0
+        for(i=1;i<=4;i++) if(a[i]!~/^[0-9]+$/||a[i]+0>255) return 0
+        return 1
+    }
+    function is_priv(s,  a) {
+        split(s,a,"."); a[1]+=0; a[2]+=0
+        return(a[1]==10||(a[1]==192&&a[2]==168)||(a[1]==172&&a[2]>=16&&a[2]<=31))
+    }
+    function is_safe(s) {
+        return(s=="1.1.1.1"||s=="8.8.8.8"||s=="8.8.4.4"||s=="9.9.9.9"||s=="1.0.0.1")
+    }
+    function msk(s,  r) {
+        r=s
+        while(match(r,/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/))
+            r=substr(r,1,RSTART-1)"x.x.x.x"substr(r,RSTART+RLENGTH)
+        while(match(r,/[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]/))
+            r=substr(r,1,RSTART-1)"xx:xx:xx:xx:xx:xx"substr(r,RSTART+RLENGTH)
+        return (length(r)>100)?substr(r,1,100)"...":r
+    }
+    function nontrivial(v,  lv) {
+        lv=tolower(v)
+        if(lv~/^(true|false|null|yes|no|none|todo|changeme|example|placeholder)$/) return 0
+        if(lv~/^your_/||lv~/^<[^>]*>$/||lv~/^\**$/||lv~/^x+$/) return 0
+        return (length(v)>=5)
+    }
+    function cred_hit(line,  lo,kws,nk,kw,i,p,bef,rest,val) {
+        lo=tolower(line)
+        nk=split("password passwd secret api_key apikey private_key auth_key bearer access_key token client_secret db_pass jwt credentials",kws)
+        for(i=1;i<=nk;i++) {
+            kw=kws[i]; if(!(p=index(lo,kw))) continue
+            bef=(p>1)?substr(lo,p-1,1):""
+            if(bef~/[a-z0-9_]/) continue
+            rest=substr(line,p+length(kw))
+            if(rest!~/^[^=:a-zA-Z0-9]*[=:]/) continue
+            match(rest,/[=:][[:space:]]*/)
+            val=substr(rest,RSTART+RLENGTH)
+            gsub(/^[[:space:]"]+|[[:space:]",;]+$/,"",val)
+            if(nontrivial(val)) return 1
+        }
+        return 0
+    }
+    {
+        tag=""
+        if(cred_hit($0)) tag="CRED"
+        if(!tag) { s=$0
+            while(match(s,/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/)) {
+                ip=substr(s,RSTART,RLENGTH); s=substr(s,RSTART+RLENGTH)
+                if(valid_ip(ip)&&is_priv(ip)) { tag="PRIV-IP"; break }
+            }
+        }
+        if(!tag&&match($0,/[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]/)) {
+            mac=tolower(substr($0,RSTART,RLENGTH))
+            if(mac!="00:00:00:00:00:00"&&mac!="ff:ff:ff:ff:ff:ff") tag="MAC"
+        }
+        if(!tag) { s=$0
+            while(match(s,/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/)) {
+                pre=(RSTART>1)?substr(s,RSTART-1,1):""
+                ip=substr(s,RSTART,RLENGTH); s=substr(s,RSTART+RLENGTH)
+                if(!valid_ip(ip)||is_priv(ip)||is_safe(ip)) continue
+                if(pre~/[a-zA-Z0-9.]/) continue
+                split(ip,o,"."); if(o[1]+0==0||o[1]+0==127||o[1]+0==255) continue
+                tag="PUB-IP"; break
+            }
+        }
+        if(tag) print NR "\t" tag "\t" msk($0)
+    }
+    ' "$TMP" > "$PRIV_INFO"
+    if [ ! -s "$PRIV_INFO" ]; then rm -f "$PRIV_INFO"; return 0; fi
+    PRIVACY_HITS=$(wc -l < "$PRIV_INFO" | tr -d ' ')
+    PRIVACY_INFO_FILE="$PRIV_INFO"
+    trap 'rm -f "$TMP" "$TMPERR" "${PRIVACY_INFO_FILE:-}"' EXIT INT TERM
+    local TMPCLEAN
+    TMPCLEAN="$(mktemp "${TMPDIR:-/tmp}/clipso-clean.XXXXXX")"
+    awk -v p="$PRIVACY_INFO_FILE" \
+        'BEGIN{while((getline ln<p)>0){split(ln,a,"\t");drop[a[1]]=1}}
+         {print (NR in drop)?"# censored line":$0}' \
+        "$TMP" > "$TMPCLEAN" && mv "$TMPCLEAN" "$TMP"
+}
 
-    while IFS= read -r line; do
-        if echo "$line" | grep -qiE "$PAT_CREDS" 2>/dev/null; then
-            msg="${msg}${YELLOW}  CRED    $(_mask_line "$line")${RESET}\n"
-            hits=$((hits+1)); continue
-        fi
-        if echo "$line" | grep -qE "$PAT_PRIV_IP" 2>/dev/null; then
-            msg="${msg}${YELLOW}  PRIV-IP  $(_mask_line "$line")${RESET}\n"
-            hits=$((hits+1)); continue
-        fi
-        if echo "$line" | grep -qE "$PAT_MAC" 2>/dev/null; then
-            msg="${msg}${YELLOW}  MAC     $(_mask_line "$line")${RESET}\n"
-            hits=$((hits+1)); continue
-        fi
-        if echo "$line" | grep -qE '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' 2>/dev/null; then
-            echo "$line" | grep -qE "$PAT_PRIV_IP" && continue
-            echo "$line" | grep -qE "$SAFE_IPS"    && continue
-            msg="${msg}${YELLOW}  PUB-IP  $(_mask_line "$line")${RESET}\n"
-            hits=$((hits+1))
-        fi
-    done < "$TMP"
-
-    [ "$hits" -eq 0 ] && return 0
-
-    printf "${YELLOW}privacy: %d sensitive line(s) detected:${RESET}\n" "$hits" >&2
-    printf "$msg" >&2
-    if [ "${CLIPSO_PRIVACY_CONFIRM:-0}" != "1" ]; then
-        warn "set CLIPSO_PRIVACY_CONFIRM=1 to copy anyway, or CLIPSO_PRIVACY=0 to disable check"
-        exit 0
+display_with_privacy() {
+    if [ "${PRIVACY_HITS:-0}" -gt 0 ] && [ -f "${PRIVACY_INFO_FILE:-}" ]; then
+        awk -v p="$PRIVACY_INFO_FILE" -v red="${RED}" -v cyan="${CYAN}" -v rst="${RESET}" \
+        'BEGIN{while((getline ln<p)>0){split(ln,a,"\t");fl[a[1]]=a[3]}}
+         {if(NR in fl) printf "%s%4d  %s%s\n",red,NR,fl[NR],rst
+          else          printf "%s%4d%s  %s\n",cyan,NR,rst,$0}' "$TMP"
+    else
+        awk -v c="${CYAN}" -v r="${RESET}" '{printf "%s%4d%s  %s\n",c,NR,r,$0}' "$TMP"
     fi
 }
+
 
 
 
@@ -441,6 +497,7 @@ paginate() {
 }
 
 privacy_check
+[ "${PRIVACY_HITS:-0}" -gt 0 ] && BYTES="$(wc -c < "$TMP" | tr -d ' ')"
 
 if (( BYTES > PAGER_LIMIT )); then
     paginate
@@ -448,11 +505,17 @@ else
     do_copy
     printf "\n"
     if [ "${CLIPSO_NUMBERS:-1}" = "1" ]; then
-        awk -v cyan="${CYAN}" -v reset="${RESET}" \
-            'BEGIN{OFS=""} {printf "%s%4d%s  %s\n", cyan, NR, reset, $0}' "$TMP"
+        display_with_privacy
     else
-        cat "$TMP"
+        if [ "${PRIVACY_HITS:-0}" -gt 0 ] && [ -f "${PRIVACY_INFO_FILE:-}" ]; then
+            awk -v p="$PRIVACY_INFO_FILE" -v red="${RED}" -v rst="${RESET}" \
+            'BEGIN{while((getline ln<p)>0){split(ln,a,"\t");fl[a[1]]=a[3]}}
+             {if(NR in fl) printf "%s%s%s\n",red,fl[NR],rst; else print}' "$TMP"
+        else
+            cat "$TMP"
+        fi
     fi
     printf "\n"
+    [ "${PRIVACY_HITS:-0}" -gt 0 ] && warn "privacy: ${PRIVACY_HITS} line(s) auto-removed — see red above"
     ok "copied to ${CLIP_BACKEND} — ${BYTES} bytes"
 fi
