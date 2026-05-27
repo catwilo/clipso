@@ -165,7 +165,7 @@ fi
 if [ "$IS_STDIN" = true ]; then
     info "reading from stdin"
     if [ "${CLIPSO_NO_SPINNER:-0}" = "0" ] && [ "$_NO_SPINNER" = "0" ] && [ -w /dev/tty ]; then
-        # spinner on /dev/tty; cat reads stdin synchronously first
+        # read first byte before starting spinner — avoids blocking /dev/tty during interactive prompts
         _spin_idle() {
             local s='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏' i=0
             while true; do
@@ -174,12 +174,16 @@ if [ "$IS_STDIN" = true ]; then
                 i=$((i + 1))
             done
         }
-        _spin_idle &
-        SPIN_PID=$!
-        cat > "$TMP"
-        kill "$SPIN_PID" 2>/dev/null || true
-        wait "$SPIN_PID" 2>/dev/null || true
-        printf "\r\033[K" >/dev/tty
+        # block until first byte arrives — command has started producing output
+        dd bs=1 count=1 > "$TMP" 2>/dev/null || true
+        if [ -s "$TMP" ]; then
+            _spin_idle &
+            SPIN_PID=$!
+            cat >> "$TMP"
+            kill "$SPIN_PID" 2>/dev/null || true
+            wait "$SPIN_PID" 2>/dev/null || true
+            printf "\r\033[K" >/dev/tty
+        fi
     else
         cat > "$TMP"
     fi
