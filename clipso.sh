@@ -33,7 +33,6 @@ else
     RED='' YELLOW='' GREEN='' CYAN='' RESET=''
 fi
 
-info() { :; }
 
 # ─────────────────────────────────────────────────────────────────────────────
 # config
@@ -173,7 +172,6 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 
 if [ "$IS_STDIN" = true ]; then
-    info "reading from stdin"
     if [ "${CLIPSO_NO_SPINNER:-0}" = "0" ] && [ "$_NO_SPINNER" = "0" ] && [ -w /dev/tty ]; then
         # read first byte before starting spinner — avoids blocking /dev/tty during interactive prompts
         _spin_idle() {
@@ -200,7 +198,6 @@ if [ "$IS_STDIN" = true ]; then
 
 elif [ "$IS_REMOTE" = true ]; then
     require_cmd ssh
-    info "remote: ${REMOTE_USER}@${REMOTE_HOST} port ${SSH_PORT}"
 
     # single-quote-escape path — prevents remote shell injection on paths
     # with spaces, $vars, or backticks; GNU sed compatible
@@ -221,7 +218,6 @@ elif [ "$IS_REMOTE" = true ]; then
     ok "remote file streamed"
 
 else
-    info "local: $TARGET"
     [ -f "$TARGET" ] || die "file not found: $TARGET"
     [ -r "$TARGET" ] || die "file not readable: $TARGET"
     cat "$TARGET" > "$TMP"
@@ -262,10 +258,8 @@ privacy_check() {
     }
     function msk(s,  r) {
         r=s
-        while(match(r,/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/))
-            r=substr(r,1,RSTART-1)"x.x.x.x"substr(r,RSTART+RLENGTH)
-        while(match(r,/[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]/))
-            r=substr(r,1,RSTART-1)"xx:xx:xx:xx:xx:xx"substr(r,RSTART+RLENGTH)
+        gsub(/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/,"x.x.x.x",r)
+        gsub(/[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]/,"xx:xx:xx:xx:xx:xx",r)
         return (length(r)>100)?substr(r,1,100)"...":r
     }
     function nontrivial(v,  lv) {
@@ -354,7 +348,6 @@ if (( BYTES > MAX_BYTES )); then
     die "payload too large: ${BYTES} bytes (limit: 10 MB)"
 fi
 
-info "payload: ${BYTES} bytes"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # clipboard env detection — order matters
@@ -382,7 +375,6 @@ detect_env() {
 }
 
 CLIP_ENV="$(detect_env)"
-info "backend: $CLIP_ENV"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # backends
@@ -473,7 +465,6 @@ do_copy() {
         *)       die "unrecognized clipboard environment: $CLIP_ENV" ;;
     esac
     if [ -n "${SSH_CONNECTION:-}${SSH_TTY:-}" ] && [ "$CLIP_ENV" != osc52 ]; then
-        info "ssh session — mirroring to client clipboard"
         if clip_forward_available && copy_pbcopy_forward; then
             :
         else
