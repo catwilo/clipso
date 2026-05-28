@@ -247,6 +247,7 @@ privacy_check() {
     local PRIV_INFO
     PRIV_INFO="$(mktemp "${TMPDIR:-/tmp}/clipso-priv.XXXXXX")"
     awk '
+    BEGIN{ NK=split("password passwd secret api_key apikey private_key auth_key bearer access_key token client_secret db_pass jwt credentials",KWS) }
     function valid_ip(s,  a,n,i) {
         n=split(s,a,"."); if(n!=4) return 0
         for(i=1;i<=4;i++) if(a[i]!~/^[0-9]+$/||a[i]+0>255) return 0
@@ -275,9 +276,8 @@ privacy_check() {
     }
     function cred_hit(line,  lo,kws,nk,kw,i,p,bef,rest,val) {
         lo=tolower(line)
-        nk=split("password passwd secret api_key apikey private_key auth_key bearer access_key token client_secret db_pass jwt credentials",kws)
-        for(i=1;i<=nk;i++) {
-            kw=kws[i]; if(!(p=index(lo,kw))) continue
+        for(i=1;i<=NK;i++) {
+            kw=KWS[i]; if(!(p=index(lo,kw))) continue
             bef=(p>1)?substr(lo,p-1,1):""
             if(bef~/[a-z0-9_]/) continue
             rest=substr(line,p+length(kw))
@@ -328,13 +328,18 @@ privacy_check() {
 }
 
 display_with_privacy() {
+    local nums="${CLIPSO_NUMBERS:-1}"
     if [ "${PRIVACY_HITS:-0}" -gt 0 ] && [ -f "${PRIVACY_INFO_FILE:-}" ]; then
-        awk -v p="$PRIVACY_INFO_FILE" -v red="${RED}" -v cyan="${CYAN}" -v rst="${RESET}" \
+        awk -v p="$PRIVACY_INFO_FILE" -v red="${RED}" -v cyan="${CYAN}" -v rst="${RESET}" -v nums="$nums" \
         'BEGIN{while((getline ln<p)>0){split(ln,a,"\t");fl[a[1]]=a[3]}}
-         {if(NR in fl) printf "%s%4d  %s%s\n",red,NR,fl[NR],rst
-          else          printf "%s%4d%s  %s\n",cyan,NR,rst,$0}' "$TMP"
+         {if(NR in fl) { if(nums=="1") printf "%s%4d  %s%s\n",red,NR,fl[NR],rst; else printf "%s%s%s\n",red,fl[NR],rst }
+          else          { if(nums=="1") printf "%s%4d%s  %s\n",cyan,NR,rst,$0; else print }}' "$TMP"
     else
-        awk -v c="${CYAN}" -v r="${RESET}" '{printf "%s%4d%s  %s\n",c,NR,r,$0}' "$TMP"
+        if [ "$nums" = "1" ]; then
+            awk -v c="${CYAN}" -v r="${RESET}" '{printf "%s%4d%s  %s\n",c,NR,r,$0}' "$TMP"
+        else
+            cat "$TMP"
+        fi
     fi
 }
 
@@ -515,17 +520,7 @@ if (( BYTES > PAGER_LIMIT )); then
 else
     do_copy
     printf "\n"
-    if [ "${CLIPSO_NUMBERS:-1}" = "1" ]; then
-        display_with_privacy
-    else
-        if [ "${PRIVACY_HITS:-0}" -gt 0 ] && [ -f "${PRIVACY_INFO_FILE:-}" ]; then
-            awk -v p="$PRIVACY_INFO_FILE" -v red="${RED}" -v rst="${RESET}" \
-            'BEGIN{while((getline ln<p)>0){split(ln,a,"\t");fl[a[1]]=a[3]}}
-             {if(NR in fl) printf "%s%s%s\n",red,fl[NR],rst; else print}' "$TMP"
-        else
-            cat "$TMP"
-        fi
-    fi
+    display_with_privacy
     printf "\n"
     [ "${PRIVACY_HITS:-0}" -gt 0 ] && warn "privacy: ${PRIVACY_HITS} line(s) auto-removed — see red above"
     _lines="$(wc -l < "$TMP" | tr -d ' ')"
