@@ -54,6 +54,11 @@ fi
 
 ln -sf "$CLIPSO_SH" "$BINDIR/clipso"
 ok "linked clipso → $BINDIR/clipso"
+# also fix ~/.local/bin if it exists and differs from BINDIR (stale binary guard)
+if [ "$BINDIR" != "$HOME/.local/bin" ] && [ -d "$HOME/.local/bin" ]; then
+    ln -sf "$CLIPSO_SH" "$HOME/.local/bin/clipso"
+    ok "linked clipso → $HOME/.local/bin/clipso (stale guard)"
+fi
 
 _BEG='# >>> clipso >>>'
 _END='# <<< clipso <<<'
