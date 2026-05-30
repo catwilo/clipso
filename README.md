@@ -33,17 +33,6 @@ clipboard (if a backend is available) and also mirrors to the client
 terminal via OSC52, so the content lands wherever you are.
 Headless servers use OSC52 only.
 
-## clipc helper
-
-When installed via noemap, a `clipc` zsh function is available:
-
-    clipc -- some text       copy the rest of the line literally
-    clipc                    read stdin until Ctrl-D, then copy
-
-`clipc` (no args) is the stable way to copy a pasted multi-line block:
-run it, paste, press Ctrl-D. Single quotes are required for literal
-`-- text` containing `;`, `$`, quotes, or backticks.
-
 ## Environment
 
 - `NO_COLOR` — disable colored output (also auto-disabled when stderr
