@@ -323,16 +323,17 @@ privacy_check() {
 
 display_with_privacy() {
     local nums="${CLIPSO_NUMBERS:-1}"
+    local _tty; [ -w /dev/tty ] && _tty=/dev/tty || _tty=/dev/stderr
     if [ "${PRIVACY_HITS:-0}" -gt 0 ] && [ -f "${PRIVACY_INFO_FILE:-}" ]; then
         awk -v p="$PRIVACY_INFO_FILE" -v red="${RED}" -v cyan="${CYAN}" -v rst="${RESET}" -v nums="$nums" \
         'BEGIN{while((getline ln<p)>0){split(ln,a,"\t");fl[a[1]]=a[3]}}
          {if(NR in fl) { if(nums=="1") printf "%s%4d  %s%s\n",red,NR,fl[NR],rst; else printf "%s%s%s\n",red,fl[NR],rst }
-          else          { if(nums=="1") printf "%s%4d%s  %s\n",cyan,NR,rst,$0; else print }}' "$TMP"
+          else          { if(nums=="1") printf "%s%4d%s  %s\n",cyan,NR,rst,$0; else print }}' "$TMP" > "$_tty"
     else
         if [ "$nums" = "1" ]; then
-            awk -v c="${CYAN}" -v r="${RESET}" '{printf "%s%4d%s  %s\n",c,NR,r,$0}' "$TMP"
+            awk -v c="${CYAN}" -v r="${RESET}" '{printf "%s%4d%s  %s\n",c,NR,r,$0}' "$TMP" > "$_tty"
         else
-            cat "$TMP"
+            cat "$TMP" > "$_tty"
         fi
     fi
 }
