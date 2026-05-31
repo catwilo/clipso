@@ -536,5 +536,13 @@ else
     if [ "${CLIP_FORWARD_USED:-0}" = "1" ] && [ -n "${CLIPSO_FORWARD_LABEL:-}" ]; then
         _backends_str="$_backends_str · ${CLIPSO_FORWARD_LABEL}"
     fi
-    ok "clipboard: ${_backends_str}  —  ${_lines} lines · ${_size}"
+    if [ "${IS_STDIN:-false}" = "true" ] || [ -z "${TARGET:-}" ]; then
+        _source="stdin"
+    else
+        _source="$(basename "${TARGET}")"
+    fi
+    _ndevices=1
+    [ "${CLIP_FORWARD_USED:-0}" = "1" ] && _ndevices=2
+    [ "$_ndevices" = "1" ] && _dev_label="1 device" || _dev_label="${_ndevices} devices"
+    ok "clipboard: ${_dev_label}  —  ${_source}  —  ${_lines} lines · ${_size}"
 fi
