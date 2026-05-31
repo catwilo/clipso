@@ -41,7 +41,7 @@ fi
 CLIPSO_CFG="${XDG_CONFIG_HOME:-$HOME/.config}/clipso/config"
 [ -f "$CLIPSO_CFG" ] && source "$CLIPSO_CFG"
 CLIPSO_NUMBERS="${CLIPSO_NUMBERS:-1}"
-ok()   { printf "${GREEN}[OK]${RESET}  %s\n" "$*" >&2; }
+ok()   { printf "${GREEN}[OK]${RESET}  ${*}\n" >&2; }
 warn() { printf "${YELLOW}[WARN]${RESET}  %s\n" "$*" >&2; }
 _fmt_size() {
     local b="$1"
@@ -544,5 +544,6 @@ else
     _ndevices=1
     [ "${CLIP_FORWARD_USED:-0}" = "1" ] && _ndevices=2
     [ "$_ndevices" = "1" ] && _dev_label="1 device" || _dev_label="${_ndevices} devices"
-    ok "clipboard: ${_dev_label}  —  ${_source}  —  ${_lines} lines · ${_size}"
+    _BD=$'\033[1;2m' _D=$'\033[2m'
+    ok "${CYAN}clip: ${_dev_label}${RESET}  —  ${_BD}${_source}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
 fi
