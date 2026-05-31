@@ -256,10 +256,18 @@ privacy_check() {
     function is_safe(s) {
         return(s=="1.1.1.1"||s=="8.8.8.8"||s=="8.8.4.4"||s=="9.9.9.9"||s=="1.0.0.1")
     }
-    function msk(s,  r) {
+    function msk(s,  r,  m,pad,i) {
         r=s
-        gsub(/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/,"x.x.x.x",r)
-        gsub(/[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]/,"xx:xx:xx:xx:xx:xx",r)
+        while(match(r,/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/)) {
+            m=substr(r,RSTART,RLENGTH); pad=""
+            for(i=1;i<=length(m);i++) pad=pad"x"
+            r=substr(r,1,RSTART-1) pad substr(r,RSTART+RLENGTH)
+        }
+        while(match(r,/[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]/)) {
+            m=substr(r,RSTART,RLENGTH); pad=""
+            for(i=1;i<=length(m);i++) pad=pad"x"
+            r=substr(r,1,RSTART-1) pad substr(r,RSTART+RLENGTH)
+        }
         return (length(r)>100)?substr(r,1,100)"...":r
     }
     function nontrivial(v,  lv) {
@@ -312,12 +320,15 @@ privacy_check() {
     if [ ! -s "$PRIV_INFO" ]; then rm -f "$PRIV_INFO"; return 0; fi
     PRIVACY_HITS=$(wc -l < "$PRIV_INFO" | tr -d ' ')
     PRIVACY_INFO_FILE="$PRIV_INFO"
-    trap 'rm -f "$TMP" "$TMPERR" "${PRIVACY_INFO_FILE:-}"' EXIT INT TERM
+    # TMP_DISPLAY: original sin censurar (para tty); TMP queda censurado (para clipboard)
+    TMP_DISPLAY="$(mktemp "${TMPDIR:-/tmp}/clipso-disp.XXXXXX")"
+    cp "$TMP" "$TMP_DISPLAY"
+    trap 'rm -f "$TMP" "$TMPERR" "${PRIVACY_INFO_FILE:-}" "${TMP_DISPLAY:-}"' EXIT INT TERM
     local TMPCLEAN
     TMPCLEAN="$(mktemp "${TMPDIR:-/tmp}/clipso-clean.XXXXXX")"
     awk -v p="$PRIVACY_INFO_FILE" \
-        'BEGIN{while((getline ln<p)>0){split(ln,a,"\t");drop[a[1]]=1}}
-         {print (NR in drop)?"# censored line":$0}' \
+        'BEGIN{while((getline ln<p)>0){split(ln,a,"\t");drop[a[1]]=a[3]}}
+         {print (NR in drop)?drop[NR]:$0}' \
         "$TMP" > "$TMPCLEAN" && mv "$TMPCLEAN" "$TMP"
 }
 
@@ -325,15 +336,17 @@ display_with_privacy() {
     local nums="${CLIPSO_NUMBERS:-1}"
     local _tty; [ -w /dev/tty ] && _tty=/dev/tty || _tty=/dev/stderr
     if [ "${PRIVACY_HITS:-0}" -gt 0 ] && [ -f "${PRIVACY_INFO_FILE:-}" ]; then
+        local _src="${TMP_DISPLAY:-$TMP}"
         awk -v p="$PRIVACY_INFO_FILE" -v red="${RED}" -v cyan="${CYAN}" -v rst="${RESET}" -v nums="$nums" \
         'BEGIN{while((getline ln<p)>0){split(ln,a,"\t");fl[a[1]]=a[3]}}
-         {if(NR in fl) { if(nums=="1") printf "%s%4d  %s%s\n",red,NR,fl[NR],rst; else printf "%s%s%s\n",red,fl[NR],rst }
-          else          { if(nums=="1") printf "%s%4d%s  %s\n",cyan,NR,rst,$0; else print }}' "$TMP" > "$_tty"
+         {if(NR in fl) { if(nums=="1") printf "%s%4d  %s%s\n",red,NR,$0,rst; else printf "%s%s%s\n",red,$0,rst }
+          else          { if(nums=="1") printf "%s%4d%s  %s\n",cyan,NR,rst,$0; else print }}' "$_src" > "$_tty"
     else
+        local _src="${TMP_DISPLAY:-$TMP}"
         if [ "$nums" = "1" ]; then
-            awk -v c="${CYAN}" -v r="${RESET}" '{printf "%s%4d%s  %s\n",c,NR,r,$0}' "$TMP" > "$_tty"
+            awk -v c="${CYAN}" -v r="${RESET}" '{printf "%s%4d%s  %s\n",c,NR,r,$0}' "$_src" > "$_tty"
         else
-            cat "$TMP" > "$_tty"
+            cat "$_src" > "$_tty"
         fi
     fi
 }
