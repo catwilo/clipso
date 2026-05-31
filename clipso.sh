@@ -523,6 +523,8 @@ privacy_check
 if (( BYTES > PAGER_LIMIT )); then
     paginate
 else
+    # strip ANSI from clipboard copy; display keeps colors via TMP_DISPLAY
+    sed -i 's/\x1b\[[0-9;]*m//g' "$TMP"
     do_copy
     printf "\n"
     display_with_privacy
