@@ -475,7 +475,7 @@ do_copy() {
         termux)  copy_termux  ;;
         wayland) copy_wayland ;;
         x11)     copy_x11     ;;
-        osc52)   copy_osc52   ;;
+        osc52)   if clip_forward_available && copy_pbcopy_forward; then :; else copy_osc52; fi ;;
         *)       die "unrecognized clipboard environment: $CLIP_ENV" ;;
     esac
     if [ -n "${SSH_CONNECTION:-}${SSH_TTY:-}" ] && [ "$CLIP_ENV" != osc52 ]; then
