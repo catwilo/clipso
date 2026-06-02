@@ -534,7 +534,6 @@ else
     [ "${PRIVACY_HITS:-0}" -gt 0 ] && warn "privacy: ${PRIVACY_HITS} line(s) auto-removed — see red above"
     _lines="$(wc -l < "$TMP" | tr -d ' ')"
     _size="$(_fmt_size "$BYTES")"
-    _primary="${CLIP_BACKEND#* clipboard}"
     _primary="${CLIP_BACKEND%% *}"
     _backends_str="$CLIP_BACKEND"
     if [ "${CLIP_FORWARD_USED:-0}" = "1" ] && [ -n "${CLIPSO_FORWARD_LABEL:-}" ]; then
