@@ -451,6 +451,7 @@ copy_osc52() {
 # RemoteForward; the client listener pipes it into pbcopy. Robust when OSC52
 # is unavailable (e.g. macOS Terminal.app). Socket path is a shared convention.
 CLIP_SOCK="${CLIP_FORWARD_SOCK:-$HOME/.noemap-clip.sock}"
+CLIP_BACKEND="unknown"
 CLIP_FORWARD_USED=0
 clip_forward_available() { [ -S "$CLIP_SOCK" ]; }
 copy_pbcopy_forward() {
