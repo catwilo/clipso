@@ -548,6 +548,16 @@ else
     _ndevices=1
     [ "${CLIP_FORWARD_USED:-0}" = "1" ] && _ndevices=2
     [ "$_ndevices" = "1" ] && _dev_label="1 device" || _dev_label="${_ndevices} devices"
+    case "$CLIP_BACKEND" in
+        Android*)  _platform="Termux" ;;
+        Wayland*|X11*) _platform="Debian" ;;
+        macOS*|*pbcopy*) _platform="Mac" ;;
+        *) _platform="$_dev_label" ;;
+    esac
+    [ "${CLIP_FORWARD_USED:-0}" = "1" ] && _platform="${_platform} + ${CLIPSO_FORWARD_LABEL:-remote}"
     _BD=$'\033[1;2m' _D=$'\033[2m'
-    ok "${CYAN}clip: ${_dev_label}${RESET}  —  ${_BD}${_source}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
+    _summary="copied to ${_platform}  —  ${_source}  —  ${_lines} lines · ${_size}"
+    printf "%s\n" "$_summary" >> "$TMP"
+    do_copy
+    ok "${CYAN}copied to ${_platform}${RESET}  —  ${_BD}${_source}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
 fi
