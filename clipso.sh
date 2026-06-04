@@ -409,8 +409,10 @@ copy_wayland() {
     if safe_timeout 5s wl-copy < "$TMP" 2>/dev/null; then
         CLIP_BACKEND="Wayland clipboard"
     else
-        warn "wl-copy failed — falling back to OSC52"
-        copy_osc52
+        if [ -z "${SSH_CONNECTION:-}${SSH_TTY:-}" ]; then
+            warn "wl-copy failed — falling back to OSC52"
+            copy_osc52
+        fi
     fi
 }
 
@@ -419,8 +421,10 @@ copy_x11() {
     if safe_timeout 5s xclip -selection clipboard < "$TMP" 2>/dev/null; then
         CLIP_BACKEND="X11 clipboard"
     else
-        warn "xclip failed — falling back to OSC52"
-        copy_osc52
+        if [ -z "${SSH_CONNECTION:-}${SSH_TTY:-}" ]; then
+            warn "xclip failed — falling back to OSC52"
+            copy_osc52
+        fi
     fi
 }
 
@@ -434,15 +438,18 @@ copy_osc52() {
         warn "large OSC52 payload (${BYTES} bytes) — some terminals may truncate"
     fi
 
+    local _tty; { true >/dev/tty; } 2>/dev/null && _tty=/dev/tty || _tty=/dev/stderr
     if [ -n "${TMUX:-}" ]; then
         # tmux requires DCS passthrough wrapper
-        printf '\033Ptmux;\033\033]52;c;%s\a\033\\' "$encoded"
+        _pt="$(tmux show-options -gv allow-passthrough 2>/dev/null || true)"
+        [ "$_pt" = "on" ] || { CLIP_BACKEND="OSC52-skipped"; return 0; }
+        printf '\033Ptmux;\033\033]52;c;%s\a\033\\' "$encoded" > "$_tty"
     elif [ -n "${STY:-}" ]; then
         # GNU screen DCS passthrough
         # NOTE: needs 'term xterm-256color' in ~/.screenrc — screen blocks OSC52 by default
-        printf '\033P\033]52;c;%s\a\033\\' "$encoded"
+        printf '\033P\033]52;c;%s\a\033\\' "$encoded" > "$_tty"
     else
-        printf '\033]52;c;%s\a' "$encoded"
+        printf '\033]52;c;%s\a' "$encoded" > "$_tty"
     fi
 
     CLIP_BACKEND="OSC52"
