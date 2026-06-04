@@ -66,6 +66,7 @@ _END='# <<< clipso <<<'
 _wire_rc() {
     local rc="$1"
     [ -f "$rc" ] || return 0
+    [ -L "$rc" ] && warn "$(basename "$rc") is a symlink to versioned dotfile — skipping PATH inject" && return 0
     local tmp
     tmp="$(mktemp "${TMPDIR:-/tmp}/clipso-rc.XXXXXX")"
     awk -v b="$_BEG" -v e="$_END" '
