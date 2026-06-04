@@ -463,7 +463,7 @@ CLIP_FORWARD_USED=0
 clip_forward_available() { [ -S "$CLIP_SOCK" ]; }
 copy_pbcopy_forward() {
     if has_cmd nc; then
-        if safe_timeout 5s nc -U "$CLIP_SOCK" < "$TMP" 2>/dev/null; then
+        if safe_timeout 5s nc -U --send-only "$CLIP_SOCK" < "$TMP" 2>/dev/null; then
             CLIP_FORWARD_USED=1; return 0
         fi
     elif has_cmd socat; then
