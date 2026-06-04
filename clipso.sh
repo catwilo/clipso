@@ -172,7 +172,7 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 
 if [ "$IS_STDIN" = true ]; then
-    if [ "${CLIPSO_NO_SPINNER:-0}" = "0" ] && [ "$_NO_SPINNER" = "0" ] && [ -w /dev/tty ]; then
+    if [ "${CLIPSO_NO_SPINNER:-0}" = "0" ] && [ "$_NO_SPINNER" = "0" ] && { true >/dev/tty; } 2>/dev/null; then
         # read first byte before starting spinner — avoids blocking /dev/tty during interactive prompts
         _spin_idle() {
             local s='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏' i=0
@@ -334,7 +334,7 @@ privacy_check() {
 
 display_with_privacy() {
     local nums="${CLIPSO_NUMBERS:-1}"
-    local _tty; [ -w /dev/tty ] && _tty=/dev/tty || _tty=/dev/stderr
+    local _tty; { true >/dev/tty; } 2>/dev/null && _tty=/dev/tty || _tty=/dev/stderr
     if [ "${PRIVACY_HITS:-0}" -gt 0 ] && [ -f "${PRIVACY_INFO_FILE:-}" ]; then
         local _src="${TMP_DISPLAY:-$TMP}"
         awk -v p="$PRIVACY_INFO_FILE" -v red="${RED}" -v cyan="${CYAN}" -v rst="${RESET}" -v nums="$nums" \
