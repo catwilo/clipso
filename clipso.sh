@@ -81,8 +81,14 @@ if [ "${1:-}" = "--to" ]; then
     shift 2
 fi
 if [ "${1:-}" = "--set-to" ]; then
-    [ -n "${2:-}" ] || { printf '[ERROR] --set-to requires an alias\n' >&2; exit 1; }
+    [ -n "${2:-}" ] || { printf '[ERROR] --set-to requires an alias or "off"\n' >&2; exit 1; }
     mkdir -p "$(dirname "$CLIPSO_CFG")"
+    if [ "$2" = "off" ]; then
+        if [ -f "$CLIPSO_CFG" ]; then
+            sed -i "/^CLIPSO_TO=/d" "$CLIPSO_CFG"
+        fi
+        ok "default remote disabled — local only"; exit 0
+    fi
     if [ -f "$CLIPSO_CFG" ] && grep -q "^CLIPSO_TO=" "$CLIPSO_CFG"; then
         sed -i "s|^CLIPSO_TO=.*|CLIPSO_TO=$2|" "$CLIPSO_CFG"
     else
