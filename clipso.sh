@@ -479,34 +479,7 @@ copy_osc52() {
 
     CLIP_BACKEND="OSC52"
 }
-# pbcopy-forward: write to a unix socket the client (Mac) exposes via SSH
-# RemoteForward; the client listener pipes it into pbcopy. Robust when OSC52
-# is unavailable (e.g. macOS Terminal.app). Socket path is a shared convention.
-CLIP_SOCK="${CLIP_FORWARD_SOCK:-$HOME/.noemap-clip.sock}"
 CLIP_BACKEND="unknown"
-CLIP_FORWARD_USED=0
-clip_forward_available() { [ -S "$CLIP_SOCK" ]; }
-# nc flavor differs: GNU uses --send-only, OpenBSD/macOS uses -N. Detect once.
-_nc_close_flag() {
-    if nc -h 2>&1 | grep -q -- '--send-only'; then
-        printf '%s' '--send-only'
-    elif nc -h 2>&1 | grep -q -- '-N'; then
-        printf '%s' '-N'
-    fi
-}
-copy_pbcopy_forward() {
-    if has_cmd nc; then
-        local _flag; _flag="$(_nc_close_flag)"
-        if safe_timeout 5s nc -U $_flag "$CLIP_SOCK" < "$TMP" 2>/dev/null; then
-            CLIP_FORWARD_USED=1; return 0
-        fi
-    elif has_cmd socat; then
-        if safe_timeout 5s socat - "UNIX-CONNECT:$CLIP_SOCK" < "$TMP" 2>/dev/null; then
-            CLIP_FORWARD_USED=1; return 0
-        fi
-    fi
-    return 1
-}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # dispatch
@@ -517,14 +490,9 @@ do_copy() {
         termux)  copy_termux  ;;
         wayland) copy_wayland ;;
         x11)     copy_x11     ;;
-        osc52)   if clip_forward_available && copy_pbcopy_forward; then :;
-                 elif clip_forward_available; then copy_osc52;
-                 else CLIP_BACKEND="cache-only"; fi ;;
+        osc52)   copy_osc52 ;;
         *)       die "unrecognized clipboard environment: $CLIP_ENV" ;;
     esac
-    if [ -n "${SSH_CONNECTION:-}${SSH_TTY:-}" ] && [ "$CLIP_ENV" != osc52 ]; then
-        clip_forward_available && copy_pbcopy_forward || copy_osc52
-    fi
     # cache for mesh clipboard paste-back (all nodes, all backends)
     _cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/clipso"
     mkdir -p "$_cache_dir"
@@ -590,16 +558,12 @@ else
     else
         _source="$(basename "${TARGET}")"
     fi
-    _ndevices=1
-    [ "${CLIP_FORWARD_USED:-0}" = "1" ] && _ndevices=2
-    [ "$_ndevices" = "1" ] && _dev_label="1 device" || _dev_label="${_ndevices} devices"
     case "$CLIP_BACKEND" in
         Android*)  _platform="Termux" ;;
         Wayland*|X11*) _platform="Debian" ;;
         macOS*|*pbcopy*) _platform="Mac" ;;
-        *) _platform="$_dev_label" ;;
+        *) _platform="local" ;;
     esac
-    [ "${CLIP_FORWARD_USED:-0}" = "1" ] && _platform="${_platform} + ${CLIPSO_FORWARD_LABEL:-remote}"
     _BD=$'\033[1;2m' _D=$'\033[2m'
     _summary="copied to ${_platform}  —  ${_source}  —  ${_lines} lines · ${_size}"
     printf "%s\n" "$_summary" >> "$TMP"
