@@ -502,6 +502,10 @@ do_copy() {
         _nclip="${NOEMAP_BASE:-$HOME/unix-toolkit-tools/noemap}/bin/nclip-send"
         if [ -x "$_nclip" ]; then
             for _to_alias in $(printf '%s' "$CLIPSO_TO" | tr ',' ' '); do
+                _to_lines="$(wc -l < "$TMP" | tr -d " ")"
+                _to_size="$(_fmt_size "$BYTES")"
+                _BD=$'\033[1;2m'; _D=$'\033[2m'
+                ok "${CYAN}copied to ${_to_alias}${RESET}  —  ${_BD}stdin${RESET}  —  ${_D}${_to_lines} lines · ${_to_size}${RESET}"
                 "$_nclip" "$_to_alias" < "$TMP" >/dev/null 2>&1 &!
             done
         fi
