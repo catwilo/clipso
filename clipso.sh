@@ -497,19 +497,18 @@ do_copy() {
     _cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/clipso"
     mkdir -p "$_cache_dir"
     cp "$TMP" "$_cache_dir/last"
-    # --to: send directly to remote clipboard via nclip-send (background, no blocking)
-    if [ -n "${CLIPSO_TO:-}" ]; then
-        _nclip="${NOEMAP_BASE:-$HOME/unix-toolkit-tools/noemap}/bin/nclip-send"
-        if [ -x "$_nclip" ]; then
-            for _to_alias in $(printf '%s' "$CLIPSO_TO" | tr ',' ' '); do
-                _to_lines="$(wc -l < "$TMP" | tr -d " ")"
-                _to_size="$(_fmt_size "$BYTES")"
-                _BD=$'\033[1;2m'; _D=$'\033[2m'
-                ok "${CYAN}copied to ${_to_alias}${RESET}  —  ${_BD}stdin${RESET}  —  ${_D}${_to_lines} lines · ${_to_size}${RESET}"
-                "$_nclip" "$_to_alias" < "$TMP" >/dev/null 2>&1 &!
-            done
-        fi
-    fi
+}
+
+# send_to_remotes — push clipboard to remote aliases via nclip-send.
+# Called ONCE at end of main, after local copy + display. Never inside do_copy.
+send_to_remotes() {
+    [ -n "${CLIPSO_TO:-}" ] || return 0
+    _nclip="${NOEMAP_BASE:-$HOME/unix-toolkit-tools/noemap}/bin/nclip-send"
+    [ -x "$_nclip" ] || return 0
+    for _to_alias in $(printf '%s' "$CLIPSO_TO" | tr ',' ' '); do
+        ( "$_nclip" "$_to_alias" < "$TMP" >/dev/null 2>&1 & )
+    done
+    return 0
 }
 paginate() {
     local chunk_dir
@@ -575,4 +574,10 @@ else
     printf "%s\n" "$_summary" >> "$TMP"
     do_copy
     ok "${CYAN}copied to ${_platform}${RESET}  —  ${_BD}${_source}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
+    if [ -n "${CLIPSO_TO:-}" ]; then
+        send_to_remotes
+        for _to_alias in $(printf '%s' "$CLIPSO_TO" | tr ',' ' '); do
+            ok "${CYAN}sent to ${_to_alias}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
+        done
+    fi
 fi
