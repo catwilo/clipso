@@ -613,10 +613,10 @@ else
     else
         _summary="copied to ${_platform} -- ${_source} -- ${_lines} lines / ${_size}"
     fi
-    printf "%s\n" "$_summary" >> "$TMP"
-    do_copy
     if [ -n "${CLIPSO_TO:-}" ]; then
         send_to_remotes
+        printf "%s\n" "$_summary" >> "$TMP"
+        do_copy
         _DB="${NOEMAP_BASE:-$HOME/unix-toolkit-tools/noemap}/state/devices.db"
         _remotes_str=""
         for _r in $(printf '%s' "$CLIPSO_TO" | tr ',' ' '); do
@@ -628,6 +628,8 @@ else
         done
         ok "${CYAN}[${_platform}]${RESET} ❯ [${_remotes_str}]  —  ${_BD}${_source}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
     else
+        printf "%s\n" "$_summary" >> "$TMP"
+        do_copy
         ok "${CYAN}[${_platform}]${RESET}  —  ${_BD}${_source}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
     fi
 fi
