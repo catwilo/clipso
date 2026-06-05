@@ -73,6 +73,13 @@ if [ "${1:-}" = "--paste" ] || [ "${1:-}" = "-P" ]; then
     exit 0
 fi
 
+# ── --to <alias[,alias...]> — copy local + send to remote clipboard(s) via nclip-send
+CLIPSO_TO=""
+if [ "${1:-}" = "--to" ]; then
+    [ -n "${2:-}" ] || { printf '[ERROR] --to requires an alias\n' >&2; exit 1; }
+    CLIPSO_TO="$2"
+    shift 2
+fi
 while getopts ":p:nqh" opt; do
     case "$opt" in
         p) SSH_PORT="$OPTARG" ;;
@@ -522,8 +529,14 @@ do_copy() {
     _cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/clipso"
     mkdir -p "$_cache_dir"
     cp "$TMP" "$_cache_dir/last"
+    # --to: write pending file; zsh precmd drains outside the pipeline (no blocking)
+    if [ -n "${CLIPSO_TO:-}" ]; then
+        _to_cache="${XDG_CACHE_HOME:-$HOME/.cache}/clipso"
+        mkdir -p "$_to_cache"
+        cp "$TMP" "$_to_cache/to-payload"
+        printf '%s\n' "$CLIPSO_TO" > "$_to_cache/to-pending"
+    fi
 }
-
 paginate() {
     local chunk_dir
     chunk_dir="$(mktemp -d "${TMPDIR:-/tmp}/clipso-pages.XXXXXX")"
