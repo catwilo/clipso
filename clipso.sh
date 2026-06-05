@@ -86,14 +86,14 @@ if [ "${1:-}" = "--set-to" ]; then
     if [ "$2" = "off" ]; then
         mkdir -p "$(dirname "$CLIPSO_CFG")"
         if [ -f "$CLIPSO_CFG" ] && grep -q "^CLIPSO_TO=" "$CLIPSO_CFG"; then
-            sed -i "s|^CLIPSO_TO=.*|CLIPSO_TO=|" "$CLIPSO_CFG"
+            sed -i.bak "s|^CLIPSO_TO=.*|CLIPSO_TO=|" "$CLIPSO_CFG" && rm -f "${CLIPSO_CFG}.bak"
         else
             printf "CLIPSO_TO=\n" >> "$CLIPSO_CFG"
         fi
         ok "default remote disabled — local only"; exit 0
     fi
     if [ -f "$CLIPSO_CFG" ] && grep -q "^CLIPSO_TO=" "$CLIPSO_CFG"; then
-        sed -i "s|^CLIPSO_TO=.*|CLIPSO_TO=$2|" "$CLIPSO_CFG"
+        sed -i.bak "s|^CLIPSO_TO=.*|CLIPSO_TO=$2|" "$CLIPSO_CFG" && rm -f "${CLIPSO_CFG}.bak"
     else
         printf "CLIPSO_TO=%s\n" "$2" >> "$CLIPSO_CFG"
     fi
@@ -565,7 +565,7 @@ else
     # preserve colored copy for tty display; strip ANSI only for clipboard
     TMP_DISPLAY="$(mktemp "${TMPDIR:-/tmp}/clipso-disp.XXXXXX")"
     cp "$TMP" "$TMP_DISPLAY"
-    sed -i 's/\x1b\[[0-9;]*m//g' "$TMP"
+    sed -i.bak 's/\x1b\[[0-9;]*m//g' "$TMP" && rm -f "${TMP}.bak"
     do_copy
     printf "\n"
     display_with_privacy
