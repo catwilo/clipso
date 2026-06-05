@@ -607,6 +607,8 @@ else
         *) _platform="local" ;;
     esac
     _BD=$'\033[1;2m' _D=$'\033[2m'
+    printf "%s\n" "$_summary" >> "$TMP"
+    do_copy
     if [ -n "${CLIPSO_TO:-}" ]; then
         send_to_remotes
         _DB="${NOEMAP_BASE:-$HOME/unix-toolkit-tools/noemap}/state/devices.db"
