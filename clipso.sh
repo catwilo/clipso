@@ -74,7 +74,7 @@ if [ "${1:-}" = "--paste" ] || [ "${1:-}" = "-P" ]; then
 fi
 
 # ── --to <alias[,alias...]> — copy local + send to remote clipboard(s) via nclip-send
-CLIPSO_TO=""
+CLIPSO_TO="${CLIPSO_TO:-}"
 if [ "${1:-}" = "--to" ]; then
     [ -n "${2:-}" ] || { printf '[ERROR] --to requires an alias\n' >&2; exit 1; }
     CLIPSO_TO="$2"
@@ -497,12 +497,14 @@ do_copy() {
     _cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/clipso"
     mkdir -p "$_cache_dir"
     cp "$TMP" "$_cache_dir/last"
-    # --to: write pending file; zsh precmd drains outside the pipeline (no blocking)
+    # --to: send directly to remote clipboard via nclip-send (background, no blocking)
     if [ -n "${CLIPSO_TO:-}" ]; then
-        _to_cache="${XDG_CACHE_HOME:-$HOME/.cache}/clipso"
-        mkdir -p "$_to_cache"
-        cp "$TMP" "$_to_cache/to-payload"
-        printf '%s\n' "$CLIPSO_TO" > "$_to_cache/to-pending"
+        _nclip="${NOEMAP_BASE:-$HOME/unix-toolkit-tools/noemap}/bin/nclip-send"
+        if [ -x "$_nclip" ]; then
+            for _to_alias in $(printf '%s' "$CLIPSO_TO" | tr ',' ' '); do
+                "$_nclip" "$_to_alias" < "$TMP" &!
+            done
+        fi
     fi
 }
 paginate() {
