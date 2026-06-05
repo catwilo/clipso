@@ -611,9 +611,9 @@ else
     _BD=$'\033[1;2m' _D=$'\033[2m'
     if [ -n "${CLIPSO_TO:-}" ]; then
         _remotes_plain="$(printf '%s' "$CLIPSO_TO" | sed 's/,/ - /g')"
-        _summary="copied to ${_platform} > [${_remotes_plain}] -- ${_source} -- ${_lines} lines / ${_size}"
+        _summary="$(printf '[OK]  [%s] â¯ [%s]  â  %s  â  %s lines Â· %s' "$_platform" "$_remotes_plain" "$_source" "$_lines" "$_size")"
     else
-        _summary="copied to ${_platform} -- ${_source} -- ${_lines} lines / ${_size}"
+        _summary="$(printf '[OK]  [%s]  â  %s  â  %s lines Â· %s' "$_platform" "$_source" "$_lines" "$_size")"
     fi
     if [ -n "${CLIPSO_TO:-}" ]; then
         send_to_remotes
