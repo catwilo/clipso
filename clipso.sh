@@ -535,9 +535,9 @@ send_to_remotes() {
     [ -n "${CLIPSO_TO:-}" ] || return 0
     _nclip="${NOEMAP_BASE:-$HOME/unix-toolkit-tools/noemap}/bin/nclip-send"
     [ -x "$_nclip" ] || return 0
-    _snap="$(mktemp "${TMPDIR:-/tmp}/clipso-snap.XXXXXX")"
-    cp "$TMP" "$_snap"
     for _to_alias in $(printf '%s' "$CLIPSO_TO" | tr ',' ' '); do
+        _snap="$(mktemp "${TMPDIR:-/tmp}/clipso-snap.XXXXXX")"
+        cp "$TMP" "$_snap"
         ( "$_nclip" "$_to_alias" < "$_snap" >/dev/null 2>&1; rm -f "$_snap" ) &
     done
     return 0
@@ -611,15 +611,16 @@ else
     _BD=$'\033[1;2m' _D=$'\033[2m'
     if [ -n "${CLIPSO_TO:-}" ]; then
         _remotes_plain="$(printf '%s' "$CLIPSO_TO" | sed 's/,/ - /g')"
-        _summary="$(printf '[OK]  [%s] â¯ [%s]  â  %s  â  %s lines Â· %s' "$_platform" "$_remotes_plain" "$_source" "$_lines" "$_size")"
+        _summary="[OK]  [${_platform}] > [${_remotes_plain}] -- ${_source} -- ${_lines} lines * ${_size}"
     else
-        _summary="$(printf '[OK]  [%s]  â  %s  â  %s lines Â· %s' "$_platform" "$_source" "$_lines" "$_size")"
+        _summary="[OK]  [${_platform}] -- ${_source} -- ${_lines} lines * ${_size}"
     fi
     if [ -n "${CLIPSO_TO:-}" ]; then
+        printf "%s\n" "$_summary" >> "$TMP"
+        do_copy
         send_to_remotes
-        if [ "${CLIPSO_NO_SUMMARY:-0}" = "0" ]; then
-            printf "%s\n" "$_summary" >> "$TMP"
-            do_copy
+        if [ "${CLIPSO_NO_SUMMARY:-0}" = "1" ]; then
+            : # remote handles its own copy
         fi
         _DB="${NOEMAP_BASE:-$HOME/unix-toolkit-tools/noemap}/state/devices.db"
         _remotes_str=""
