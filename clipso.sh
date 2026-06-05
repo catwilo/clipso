@@ -535,8 +535,10 @@ send_to_remotes() {
     [ -n "${CLIPSO_TO:-}" ] || return 0
     _nclip="${NOEMAP_BASE:-$HOME/unix-toolkit-tools/noemap}/bin/nclip-send"
     [ -x "$_nclip" ] || return 0
+    _snap="$(mktemp "${TMPDIR:-/tmp}/clipso-snap.XXXXXX")"
+    cp "$TMP" "$_snap"
     for _to_alias in $(printf '%s' "$CLIPSO_TO" | tr ',' ' '); do
-        ( "$_nclip" "$_to_alias" < "$TMP" >/dev/null 2>&1 & )
+        ( "$_nclip" "$_to_alias" < "$_snap" >/dev/null 2>&1; rm -f "$_snap" ) &
     done
     return 0
 }
