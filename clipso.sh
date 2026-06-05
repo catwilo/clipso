@@ -584,9 +584,15 @@ else
         _source="$(basename "${TARGET}")"
     fi
     case "$CLIP_BACKEND" in
-        Android*)  _platform="Termux" ;;
-        Wayland*|X11*) _platform="Debian" ;;
+        Android*)       _platform="Termux" ;;
+        Wayland*|X11*)  _platform="Debian" ;;
         macOS*|*pbcopy*) _platform="Mac" ;;
+        OSC52*|osc52*)
+            case "$(uname -s 2>/dev/null)" in
+                Darwin) _platform="Mac"    ;;
+                Linux)  _platform="Linux"  ;;
+                *)      _platform="local"  ;;
+            esac ;;
         *) _platform="local" ;;
     esac
     _BD=$'\033[1;2m' _D=$'\033[2m'
