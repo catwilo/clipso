@@ -80,6 +80,16 @@ if [ "${1:-}" = "--to" ]; then
     CLIPSO_TO="$2"
     shift 2
 fi
+if [ "${1:-}" = "--set-to" ]; then
+    [ -n "${2:-}" ] || { printf '[ERROR] --set-to requires an alias\n' >&2; exit 1; }
+    mkdir -p "$(dirname "$CLIPSO_CFG")"
+    if [ -f "$CLIPSO_CFG" ] && grep -q "^CLIPSO_TO=" "$CLIPSO_CFG"; then
+        sed -i "s|^CLIPSO_TO=.*|CLIPSO_TO=$2|" "$CLIPSO_CFG"
+    else
+        printf "CLIPSO_TO=%s\n" "$2" >> "$CLIPSO_CFG"
+    fi
+    ok "default remote set to: $2"; exit 0
+fi
 while getopts ":p:nqh" opt; do
     case "$opt" in
         p) SSH_PORT="$OPTARG" ;;
@@ -573,11 +583,11 @@ else
     _summary="copied to ${_platform}  —  ${_source}  —  ${_lines} lines · ${_size}"
     printf "%s\n" "$_summary" >> "$TMP"
     do_copy
-    ok "${CYAN}copied to ${_platform}${RESET}  —  ${_BD}${_source}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
     if [ -n "${CLIPSO_TO:-}" ]; then
         send_to_remotes
-        for _to_alias in $(printf '%s' "$CLIPSO_TO" | tr ',' ' '); do
-            ok "${CYAN}sent to ${_to_alias}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
-        done
+        _remotes="$(printf '%s' "$CLIPSO_TO" | sed 's/,/ - /g')"
+        ok "${CYAN}[${_platform}]${RESET} ❯ ${CYAN}[${_remotes}]${RESET}  —  ${_BD}${_source}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
+    else
+        ok "${CYAN}[${_platform}]${RESET}  —  ${_BD}${_source}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
     fi
 fi
