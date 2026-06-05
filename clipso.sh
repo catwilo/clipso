@@ -17,8 +17,8 @@ set -Eeuo pipefail
 # guard — must run under bash 4+ (Termux/Debian/Arch all ship bash 5.x)
 # ─────────────────────────────────────────────────────────────────────────────
 
-if (( BASH_VERSINFO[0] < 4 )); then
-    printf '[ERROR] bash 4+ required (found %s)\n' "$BASH_VERSION" >&2
+if (( BASH_VERSINFO[0] < 3 )) || { (( BASH_VERSINFO[0] == 3 )) && (( BASH_VERSINFO[1] < 2 )); }; then
+    printf '[ERROR] bash 3.2+ required (found %s)\n' "$BASH_VERSION" >&2
     exit 1
 fi
 
@@ -535,7 +535,8 @@ paginate() {
     trap 'rm -rf "$chunk_dir"; rm -f "$TMP" "$TMPERR"' EXIT INT TERM
     split -b "${PAGER_LIMIT}" "$TMP" "${chunk_dir}/page_"
     local pages=()
-    mapfile -t pages < <(find "$chunk_dir" -name "page_*" | sort)
+    pages=()
+    while IFS= read -r _pg; do pages+=("$_pg"); done < <(find "$chunk_dir" -name "page_*" | sort)
     local total="${#pages[@]}"
     local i=0
     for chunk in "${pages[@]}"; do
@@ -594,8 +595,16 @@ else
     do_copy
     if [ -n "${CLIPSO_TO:-}" ]; then
         send_to_remotes
-        _remotes="$(printf '%s' "$CLIPSO_TO" | sed 's/,/ - /g')"
-        ok "${CYAN}[${_platform}]${RESET} ❯ ${CYAN}[${_remotes}]${RESET}  —  ${_BD}${_source}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
+        _DB="${NOEMAP_BASE:-$HOME/unix-toolkit-tools/noemap}/state/devices.db"
+        _remotes_str=""
+        for _r in $(printf '%s' "$CLIPSO_TO" | tr ',' ' '); do
+            if [ -f "$_DB" ] && awk -F'|' -v a="$_r" '$1==a{found=1}END{exit !found}' "$_DB" 2>/dev/null; then
+                _remotes_str="${_remotes_str:+$_remotes_str - }${CYAN}${_r}${RESET}"
+            else
+                _remotes_str="${_remotes_str:+$_remotes_str - }${RED}✗${_r}${RESET}"
+            fi
+        done
+        ok "${CYAN}[${_platform}]${RESET} ❯ [${_remotes_str}]  —  ${_BD}${_source}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
     else
         ok "${CYAN}[${_platform}]${RESET}  —  ${_BD}${_source}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
     fi
