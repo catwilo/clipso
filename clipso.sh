@@ -538,6 +538,7 @@ send_to_remotes() {
     for _to_alias in $(printf '%s' "$CLIPSO_TO" | tr ',' ' '); do
         _snap="$(mktemp "${TMPDIR:-/tmp}/clipso-snap.XXXXXX")"
         cp "$TMP" "$_snap"
+        LC_ALL=C sed 's/[^[:print:]\t]//g' "$_snap" > "${_snap}.clean" && mv "${_snap}.clean" "$_snap" || true
         ( "$_nclip" "$_to_alias" < "$_snap" >/dev/null 2>&1; rm -f "$_snap" ) &
     done
     return 0
