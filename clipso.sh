@@ -384,10 +384,24 @@ detect_env() {
     # x11
     [ -n "${DISPLAY:-}" ] && { echo "x11"; return; }
 
+    # headless w/ live X11 socket (e.g. SSH into a box running Xorg) — use xclip
+    if has_cmd xclip; then
+        for _xs in /tmp/.X11-unix/X*; do
+            [ -S "$_xs" ] || continue
+            export DISPLAY=":${_xs##*/X}"
+            echo "x11"; return
+        done
+    fi
     # ssh / headless / tmux / screen — OSC52 escape sequence
     echo "osc52"
 }
 
+# headless: probe live X11 socket before detect_env runs (export must be in parent shell)
+if [ -z "${DISPLAY:-}" ] && command -v xclip >/dev/null 2>&1; then
+    for _xs in /tmp/.X11-unix/X*; do
+        [ -S "$_xs" ] && export DISPLAY=":${_xs##*/X}" && break
+    done
+fi
 CLIP_ENV="$(detect_env)"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -429,6 +443,10 @@ copy_x11() {
 }
 
 copy_osc52() {
+    # skip large payloads in SSH — terminal chain truncates/blobs
+    if [ -n "${SSH_CONNECTION:-}${SSH_TTY:-}" ] && (( BYTES > 20000 )); then
+        CLIP_BACKEND="cache-only"; return 0
+    fi
     # portable base64, no line wrapping: GNU uses -w0; BSD/macOS/toybox have no -w
     # (they emit a single line by default), so fall back to stripping newlines
     local encoded
@@ -461,9 +479,18 @@ CLIP_SOCK="${CLIP_FORWARD_SOCK:-$HOME/.noemap-clip.sock}"
 CLIP_BACKEND="unknown"
 CLIP_FORWARD_USED=0
 clip_forward_available() { [ -S "$CLIP_SOCK" ]; }
+# nc flavor differs: GNU uses --send-only, OpenBSD/macOS uses -N. Detect once.
+_nc_close_flag() {
+    if nc -h 2>&1 | grep -q -- '--send-only'; then
+        printf '%s' '--send-only'
+    elif nc -h 2>&1 | grep -q -- '-N'; then
+        printf '%s' '-N'
+    fi
+}
 copy_pbcopy_forward() {
     if has_cmd nc; then
-        if safe_timeout 5s nc -U --send-only "$CLIP_SOCK" < "$TMP" 2>/dev/null; then
+        local _flag; _flag="$(_nc_close_flag)"
+        if safe_timeout 5s nc -U $_flag "$CLIP_SOCK" < "$TMP" 2>/dev/null; then
             CLIP_FORWARD_USED=1; return 0
         fi
     elif has_cmd socat; then
@@ -489,11 +516,7 @@ do_copy() {
         *)       die "unrecognized clipboard environment: $CLIP_ENV" ;;
     esac
     if [ -n "${SSH_CONNECTION:-}${SSH_TTY:-}" ] && [ "$CLIP_ENV" != osc52 ]; then
-        if clip_forward_available && copy_pbcopy_forward; then
-            :
-        else
-            copy_osc52
-        fi
+        clip_forward_available && copy_pbcopy_forward || copy_osc52
     fi
     # cache for mesh clipboard paste-back (all nodes, all backends)
     _cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/clipso"
