@@ -502,7 +502,7 @@ do_copy() {
         _nclip="${NOEMAP_BASE:-$HOME/unix-toolkit-tools/noemap}/bin/nclip-send"
         if [ -x "$_nclip" ]; then
             for _to_alias in $(printf '%s' "$CLIPSO_TO" | tr ',' ' '); do
-                "$_nclip" "$_to_alias" < "$TMP" &!
+                "$_nclip" "$_to_alias" < "$TMP" >/dev/null 2>&1 &!
             done
         fi
     fi
