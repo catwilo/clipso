@@ -418,6 +418,8 @@ detect_env() {
             echo "x11"; return
         done
     fi
+    # macOS — pbcopy available (native, works headless/SSH)
+    has_cmd pbcopy && { echo "pbcopy"; return; }
     # ssh / headless / tmux / screen — OSC52 escape sequence
     echo "osc52"
 }
@@ -468,6 +470,14 @@ copy_x11() {
     fi
 }
 
+copy_pbcopy() {
+    if safe_timeout 5s pbcopy < "$TMP" 2>/dev/null; then
+        CLIP_BACKEND="macOS pbcopy"
+    else
+        die "pbcopy failed"
+    fi
+}
+
 copy_osc52() {
     # skip large payloads in SSH — terminal chain truncates/blobs
     if [ -n "${SSH_CONNECTION:-}${SSH_TTY:-}" ] && (( BYTES > 20000 )); then
@@ -509,6 +519,7 @@ do_copy() {
         termux)  copy_termux  ;;
         wayland) copy_wayland ;;
         x11)     copy_x11     ;;
+        pbcopy)  copy_pbcopy ;;
         osc52)   copy_osc52 ;;
         *)       die "unrecognized clipboard environment: $CLIP_ENV" ;;
     esac
