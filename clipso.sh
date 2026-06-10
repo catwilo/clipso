@@ -41,8 +41,21 @@ fi
 CLIPSO_CFG="${XDG_CONFIG_HOME:-$HOME/.config}/clipso/config"
 [ -f "$CLIPSO_CFG" ] && source "$CLIPSO_CFG"
 CLIPSO_NUMBERS="${CLIPSO_NUMBERS:-1}"
+CLIPSO_ENABLED="${CLIPSO_ENABLED:-1}"
 ok()   { printf "${GREEN}[OK]${RESET}  ${*}\n" >&2; }
 warn() { printf "${YELLOW}[WARN]${RESET}  %s\n" "$*" >&2; }
+
+# cfg_write KEY VALUE — atomic upsert into CLIPSO_CFG (same-dir tmp + mv)
+cfg_write() {
+    local key="$1" val="$2" tmp
+    mkdir -p "$(dirname "$CLIPSO_CFG")"
+    tmp="${CLIPSO_CFG}.tmp.$$"
+    if [ -f "$CLIPSO_CFG" ]; then
+        grep -v "^${key}=" "$CLIPSO_CFG" > "$tmp" 2>/dev/null || true
+    fi
+    printf '%s=%s\n' "$key" "$val" >> "$tmp"
+    mv "$tmp" "$CLIPSO_CFG"
+}
 _fmt_size() {
     local b="$1"
     if   (( b < 1024 ));    then
@@ -73,31 +86,63 @@ if [ "${1:-}" = "--paste" ] || [ "${1:-}" = "-P" ]; then
     exit 0
 fi
 
-# ── --to <alias[,alias...]> — copy local + send to remote clipboard(s) via nclip-send
+# ── --to <alias[,alias...]> — one-shot: send to remote this invocation only
 CLIPSO_TO="${CLIPSO_TO:-}"
+CLIPSO_TO_EXPLICIT=0
 if [ "${1:-}" = "--to" ]; then
     [ -n "${2:-}" ] || { printf '[ERROR] --to requires an alias\n' >&2; exit 1; }
     CLIPSO_TO="$2"
+    CLIPSO_TO_EXPLICIT=1
     shift 2
 fi
+
+# ── target subcommand — manage persistent remote target ─────────────────────
+if [ "${1:-}" = "target" ]; then
+    subcmd="${2:-status}"
+    case "$subcmd" in
+        set)
+            [ -n "${3:-}" ] || { printf '[ERROR] target set requires an alias\n' >&2; exit 1; }
+            cfg_write CLIPSO_TO "$3"
+            cfg_write CLIPSO_ENABLED 1
+            ok "target set to: $3 (enabled)"; exit 0
+            ;;
+        off)
+            cfg_write CLIPSO_ENABLED 0
+            ok "remote send disabled — alias preserved (run: clipso target on to re-enable)"; exit 0
+            ;;
+        on)
+            cfg_write CLIPSO_ENABLED 1
+            _cur_to="${CLIPSO_TO:-}"
+            [ -n "$_cur_to" ] && ok "remote send enabled — target: ${_cur_to}"                               || ok "remote send enabled — no target set (run: clipso target set <alias>)"
+            exit 0
+            ;;
+        status)
+            _cur_to="${CLIPSO_TO:-}"
+            _cur_en="${CLIPSO_ENABLED:-1}"
+            if [ -z "$_cur_to" ]; then
+                ok "target: (none)"
+            elif [ "$_cur_en" = "0" ]; then
+                ok "target: ${_cur_to}  (disabled — run: clipso target on)"
+            else
+                ok "target: ${_cur_to}  (enabled)"
+            fi
+            exit 0
+            ;;
+        *)
+            printf '[ERROR] unknown target subcommand: %s\n' "$subcmd" >&2
+            printf 'usage: clipso target set <alias> | off | on | status\n' >&2
+            exit 1
+            ;;
+    esac
+fi
+
+# ── --set-to: deprecated alias for target set ────────────────────────────────
 if [ "${1:-}" = "--set-to" ]; then
-    [ -n "${2:-}" ] || { printf '[ERROR] --set-to requires an alias or "off"\n' >&2; exit 1; }
-    mkdir -p "$(dirname "$CLIPSO_CFG")"
-    if [ "$2" = "off" ]; then
-        mkdir -p "$(dirname "$CLIPSO_CFG")"
-        if [ -f "$CLIPSO_CFG" ] && grep -q "^CLIPSO_TO=" "$CLIPSO_CFG"; then
-            sed -i.bak "s|^CLIPSO_TO=.*|CLIPSO_TO=|" "$CLIPSO_CFG" && rm -f "${CLIPSO_CFG}.bak"
-        else
-            printf "CLIPSO_TO=\n" >> "$CLIPSO_CFG"
-        fi
-        ok "default remote disabled — local only"; exit 0
-    fi
-    if [ -f "$CLIPSO_CFG" ] && grep -q "^CLIPSO_TO=" "$CLIPSO_CFG"; then
-        sed -i.bak "s|^CLIPSO_TO=.*|CLIPSO_TO=$2|" "$CLIPSO_CFG" && rm -f "${CLIPSO_CFG}.bak"
-    else
-        printf "CLIPSO_TO=%s\n" "$2" >> "$CLIPSO_CFG"
-    fi
-    ok "default remote set to: $2"; exit 0
+    [ -n "${2:-}" ] || { printf '[ERROR] --set-to requires an alias\n' >&2; exit 1; }
+    warn "--set-to is deprecated — use: clipso target set <alias>"
+    cfg_write CLIPSO_TO "$2"
+    cfg_write CLIPSO_ENABLED 1
+    ok "target set to: $2"; exit 0
 fi
 while getopts ":p:nqh" opt; do
     case "$opt" in
@@ -108,21 +153,27 @@ while getopts ":p:nqh" opt; do
             else
                 CLIPSO_NUMBERS=1; msg="line numbers ON"
             fi
-            mkdir -p "$(dirname "$CLIPSO_CFG")"
-            printf 'CLIPSO_NUMBERS=%s
-' "$CLIPSO_NUMBERS" > "$CLIPSO_CFG"
+            cfg_write CLIPSO_NUMBERS "$CLIPSO_NUMBERS"
             ok "saved: $msg ($CLIPSO_CFG)"; exit 0
             ;;
         q) _NO_SPINNER=1 ;;
         h)
             printf 'clipso — copy local files, remote files, or stdin to clipboard\n\n'
             printf 'usage:\n'
-            printf '  clipso <file>                 copy a local file\n'
-            printf '  clipso user@host:/path/file   copy a remote file over SSH\n'
-            printf '  clipso -p <port> user@host:/f remote with a custom SSH port\n'
-            printf '  clipso -                       read stdin\n'
-            printf '  echo hello | clipso            read piped stdin\n'
-            printf '  clipso --paste / -P            paste from mesh clipboard cache\n'
+            printf '  clipso <file>                     copy a local file\n'
+            printf '  clipso user@host:/path/file        copy a remote file over SSH\n'
+            printf '  clipso -p <port> user@host:/file   remote with a custom SSH port\n'
+            printf '  clipso -                           read stdin\n'
+            printf '  echo hello | clipso               read piped stdin\n'
+            printf '  clipso --paste / -P               paste from mesh clipboard cache\n'
+            printf '  clipso --to <alias>               one-shot send to remote clipboard\n'
+            printf '\nremote target management:\n'
+            printf '  clipso target set <alias>          persist default remote target\n'
+            printf '  clipso target off                  disable remote send (alias preserved)\n'
+            printf '  clipso target on                   re-enable remote send\n'
+            printf '  clipso target status               show current target config\n'
+            printf '\nflags:\n'
+            printf '  -n   toggle line numbers  -q   quiet  -p <port>  SSH port\n'
             exit 0
             ;;
         :) die "option -p requires a port number" ;;
@@ -529,9 +580,19 @@ do_copy() {
     cp "$TMP" "$_cache_dir/last"
 }
 
+# _should_send_remote — true if remote send is warranted this invocation
+# --to explicit always bypasses CLIPSO_ENABLED; persistent target respects it.
+_should_send_remote() {
+    [ -n "${CLIPSO_TO:-}" ] || return 1
+    [ "${CLIPSO_TO_EXPLICIT:-0}" = "1" ] && return 0
+    [ "${CLIPSO_ENABLED:-1}" = "0" ] && return 1
+    return 0
+}
+
 # send_to_remotes — push clipboard to remote aliases via nclip-send.
 # Called ONCE at end of main, after local copy + display. Never inside do_copy.
 send_to_remotes() {
+    _should_send_remote || return 0
     [ -n "${CLIPSO_TO:-}" ] || return 0
     _nclip="${NOEMAP_BASE:-$HOME/unix-toolkit-tools/noemap}/bin/nclip-send"
     [ -x "$_nclip" ] || return 0
@@ -549,7 +610,6 @@ paginate() {
     trap 'rm -rf "$chunk_dir"; rm -f "$TMP" "$TMPERR"' EXIT INT TERM
     split -b "${PAGER_LIMIT}" "$TMP" "${chunk_dir}/page_"
     local pages=()
-    pages=()
     while IFS= read -r _pg; do pages+=("$_pg"); done < <(find "$chunk_dir" -name "page_*" | sort)
     local total="${#pages[@]}"
     local i=0
@@ -587,11 +647,6 @@ else
     [ "${PRIVACY_HITS:-0}" -gt 0 ] && warn "privacy: ${PRIVACY_HITS} line(s) auto-removed — see red above"
     _lines="$(wc -l < "$TMP" | tr -d ' ')"
     _size="$(_fmt_size "$BYTES")"
-    _primary="${CLIP_BACKEND%% *}"
-    _backends_str="$CLIP_BACKEND"
-    if [ "${CLIP_FORWARD_USED:-0}" = "1" ] && [ -n "${CLIPSO_FORWARD_LABEL:-}" ]; then
-        _backends_str="$_backends_str · ${CLIPSO_FORWARD_LABEL}"
-    fi
     if [ "${IS_STDIN:-false}" = "true" ] || [ -z "${TARGET:-}" ]; then
         _source="stdin"
     else
