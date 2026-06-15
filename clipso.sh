@@ -42,7 +42,6 @@ CLIPSO_CFG="${XDG_CONFIG_HOME:-$HOME/.config}/clipso/config"
 [ -f "$CLIPSO_CFG" ] && source "$CLIPSO_CFG"
 CLIPSO_NUMBERS="${CLIPSO_NUMBERS:-1}"
 CLIPSO_ENABLED="${CLIPSO_ENABLED:-1}"
-CLIP_SOCK="${HOME}/.noemap-clip.sock"   # canonical mesh socket path
 ok()   { printf "${GREEN}[OK]${RESET}  ${*}\n" >&2; }
 warn() { printf "${YELLOW}[WARN]${RESET}  %s\n" "$*" >&2; }
 
@@ -638,15 +637,10 @@ if (( BYTES > PAGER_LIMIT )); then
     paginate
 else
     # preserve colored copy for tty display; strip ANSI only for clipboard
-    # TMP_DISPLAY set by privacy_check if hits found; set here otherwise
-    if [ -z "${TMP_DISPLAY:-}" ]; then
-        TMP_DISPLAY="$(mktemp "${TMPDIR:-/tmp}/clipso-disp.XXXXXX")"
-        cp "$TMP" "$TMP_DISPLAY"
-    fi
-    TMP_CLIP="$(mktemp "${TMPDIR:-/tmp}/clipso-clip.XXXXXX")"
-    cp "$TMP" "$TMP_CLIP"
-    trap 'rm -f "$TMP" "$TMPERR" "${PRIVACY_INFO_FILE:-}" "${TMP_DISPLAY:-}" "${TMP_CLIP:-}"' EXIT INT TERM
-    cp "$TMP_DISPLAY" "$TMP"
+    TMP_DISPLAY="$(mktemp "${TMPDIR:-/tmp}/clipso-disp.XXXXXX")"
+    cp "$TMP" "$TMP_DISPLAY"
+    sed -i.bak 's/\x1b\[[0-9;]*m//g' "$TMP" && rm -f "${TMP}.bak"
+    do_copy
     printf "\n"
     display_with_privacy
     printf "\n"
@@ -658,16 +652,15 @@ else
     else
         _source="$(basename "${TARGET}")"
     fi
-    case "$CLIP_ENV" in
-        termux)  _platform="Termux" ;;
-        wayland) _platform="Debian" ;;
-        x11)     _platform="Debian" ;;
-        pbcopy)  _platform="Mac"    ;;
-        osc52)
+    case "$CLIP_BACKEND" in
+        Android*)       _platform="Termux" ;;
+        Wayland*|X11*)  _platform="Debian" ;;
+        macOS*|*pbcopy*) _platform="Mac" ;;
+        OSC52*|osc52*)
             case "$(uname -s 2>/dev/null)" in
-                Darwin) _platform="Mac"   ;;
-                Linux)  _platform="Linux" ;;
-                *)      _platform="local" ;;
+                Darwin) _platform="Mac"    ;;
+                Linux)  _platform="Linux"  ;;
+                *)      _platform="local"  ;;
             esac ;;
         *) _platform="local" ;;
     esac
@@ -679,10 +672,8 @@ else
         _summary="[OK]  [${_platform}] -- ${_source} -- ${_lines} lines * ${_size}"
     fi
     if [ -n "${CLIPSO_TO:-}" ]; then
-        cp "$TMP_CLIP" "$TMP"
         printf "%s\n" "$_summary" >> "$TMP"
         do_copy
-        cp "$TMP_DISPLAY" "$TMP"
         send_to_remotes
         if [ "${CLIPSO_NO_SUMMARY:-0}" = "1" ]; then
             : # remote handles its own copy
@@ -699,10 +690,8 @@ else
         ok "${CYAN}[${_platform}]${RESET} ❯ [${_remotes_str}]  —  ${_BD}${_source}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
     else
         if [ "${CLIPSO_NO_SUMMARY:-0}" = "0" ]; then
-            cp "$TMP_CLIP" "$TMP"
             printf "%s\n" "$_summary" >> "$TMP"
             do_copy
-            cp "$TMP_DISPLAY" "$TMP"
         fi
         ok "${CYAN}[${_platform}]${RESET}  —  ${_BD}${_source}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
     fi
