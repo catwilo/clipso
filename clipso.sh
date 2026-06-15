@@ -421,11 +421,15 @@ display_with_privacy() {
           else          { if(nums=="1") printf "%s%4d%s  %s\n",cyan,NR,rst,$0; else print }}' "$_src" > "$_tty"
     else
         local _src="${TMP_DISPLAY:-$TMP}"
+        local _vis
+        _vis="$(mktemp "${TMPDIR:-/tmp}/clipso-vis.XXXXXX")"
+        cat -v "$_src" > "$_vis"
         if [ "$nums" = "1" ]; then
-            awk -v c="${CYAN}" -v r="${RESET}" '{printf "%s%4d%s  %s\n",c,NR,r,$0}' "$_src" > "$_tty"
+            awk -v c="${CYAN}" -v r="${RESET}" '{printf "%s%4d%s  %s\n",c,NR,r,$0}' "$_vis" > "$_tty"
         else
-            cat "$_src" > "$_tty"
+            cat "$_vis" > "$_tty"
         fi
+        rm -f "$_vis"
     fi
 }
 
@@ -699,7 +703,7 @@ else
         ok "${CYAN}[${_platform}]${RESET} ❯ [${_remotes_str}]  —  ${_BD}${_source}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
     else
         if [ "${CLIPSO_NO_SUMMARY:-0}" = "0" ]; then
-            cp "$TMP_CLIP" "$TMP"
+            cat -v "$TMP_CLIP" > "$TMP"
             printf "%s\n" "$_summary" >> "$TMP"
             do_copy
             cp "$TMP_DISPLAY" "$TMP"
