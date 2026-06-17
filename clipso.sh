@@ -27,7 +27,7 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 
 # NO_COLOR: honor https://no-color.org — also strip colors when stderr is not a tty
-if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
+if { true >/dev/tty; } 2>/dev/null && [ -z "${NO_COLOR:-}" ]; then
     RED='\033[0;31m' YELLOW='\033[1;33m' GREEN='\033[0;32m' CYAN='\033[0;36m' RESET='\033[0m'
 else
     RED='' YELLOW='' GREEN='' CYAN='' RESET=''
@@ -43,8 +43,8 @@ CLIPSO_CFG="${XDG_CONFIG_HOME:-$HOME/.config}/clipso/config"
 CLIPSO_NUMBERS="${CLIPSO_NUMBERS:-1}"
 CLIPSO_ENABLED="${CLIPSO_ENABLED:-1}"
 CLIP_SOCK="${HOME}/.noemap-clip.sock"   # canonical mesh socket path
-ok()   { printf "${GREEN}[OK]${RESET}  ${*}\n" >&2; }
-warn() { printf "${YELLOW}[WARN]${RESET}  %s\n" "$*" >&2; }
+ok()   { printf "${GREEN}[OK]${RESET}  ${*}\n" >/dev/tty; }
+warn() { printf "${YELLOW}[WARN]${RESET}  %s\n" "$*" >/dev/tty; }
 
 # cfg_write KEY VALUE — atomic upsert into CLIPSO_CFG (same-dir tmp + mv)
 cfg_write() {
