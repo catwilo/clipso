@@ -699,7 +699,7 @@ else
         ok "${CYAN}[${_platform}]${RESET} ❯ [${_remotes_str}]  —  ${_BD}${_source}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
     else
         if [ "${CLIPSO_NO_SUMMARY:-0}" = "0" ]; then
-            cat -v "$TMP_CLIP" > "$TMP"
+            sed 's/\x1b\[[0-9;]*m//g' "$TMP_CLIP" > "$TMP"
             printf "%s\n" "$_summary" >> "$TMP"
             do_copy
             cp "$TMP_DISPLAY" "$TMP"
