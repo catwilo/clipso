@@ -421,15 +421,11 @@ display_with_privacy() {
           else          { if(nums=="1") printf "%s%4d%s  %s\n",cyan,NR,rst,$0; else print }}' "$_src" > "$_tty"
     else
         local _src="${TMP_DISPLAY:-$TMP}"
-        local _vis
-        _vis="$(mktemp "${TMPDIR:-/tmp}/clipso-vis.XXXXXX")"
-        cat -v "$_src" > "$_vis"
         if [ "$nums" = "1" ]; then
-            awk -v c="${CYAN}" -v r="${RESET}" '{printf "%s%4d%s  %s\n",c,NR,r,$0}' "$_vis" > "$_tty"
+            awk -v c="${CYAN}" -v r="${RESET}" '{printf "%s%4d%s  %s\n",c,NR,r,$0}' "$_src" > "$_tty"
         else
-            cat "$_vis" > "$_tty"
+            cat "$_src" > "$_tty"
         fi
-        rm -f "$_vis"
     fi
 }
 
