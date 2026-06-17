@@ -256,11 +256,10 @@ if [ "$IS_STDIN" = true ]; then
         _phys_lines=0
 
         _count_phys() {
-            local len=${#1} cols=$_tty_cols
-            echo $(( (len + cols - 1) / cols < 1 ? 1 : (len + cols - 1) / cols ))
+            local len=${#1} cols=$_tty_cols _r
+            (( _r = (len + cols - 1) / cols )); (( _r < 1 )) && _r=1
+            printf '%d\n' "$_r"
         }
-
-        trap 'rm -f "$TMP" "$TMPERR"' EXIT INT TERM
 
         while true; do
             if IFS= read -t 0.05 -r _line; then
@@ -270,7 +269,7 @@ if [ "$IS_STDIN" = true ]; then
                 _phys_lines=$((_phys_lines + _p))
             else
                 # idle — process may be waiting for input; block until next line or EOF
-                if IFS= read -r _line; then
+                if IFS= read -t 5 -r _line; then
                     printf "%s\n" "$_line" >/dev/tty
                     printf "%s\n" "$_line" >> "$TMP"
                     _p=$(_count_phys "$_line")
