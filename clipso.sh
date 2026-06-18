@@ -75,7 +75,6 @@ die()  { printf "${RED}[ERROR]${RESET} %s\n" "$*" >&2; exit 1; }
 # ─────────────────────────────────────────────────────────────────────────────
 
 SSH_PORT=22
-_NO_SPINNER=0
 
 # ── paste mode — read from local cache (mesh clipboard) ─────────────────────
 if [ "${1:-}" = "--paste" ] || [ "${1:-}" = "-P" ]; then
@@ -146,7 +145,7 @@ if [ "${1:-}" = "--set-to" ]; then
     cfg_write CLIPSO_ENABLED 1
     ok "target set to: $2"; exit 0
 fi
-while getopts ":p:nqh" opt; do
+while getopts ":p:nh" opt; do
     case "$opt" in
         p) SSH_PORT="$OPTARG" ;;
         n)
@@ -158,7 +157,6 @@ while getopts ":p:nqh" opt; do
             cfg_write CLIPSO_NUMBERS "$CLIPSO_NUMBERS"
             ok "saved: $msg ($CLIPSO_CFG)"; exit 0
             ;;
-        q) _NO_SPINNER=1 ;;
         h)
             printf 'clipso — copy local files, remote files, or stdin to clipboard\n\n'
             printf 'usage:\n'
@@ -175,7 +173,7 @@ while getopts ":p:nqh" opt; do
             printf '  clipso target on                   re-enable remote send\n'
             printf '  clipso target status               show current target config\n'
             printf '\nflags:\n'
-            printf '  -n   toggle line numbers  -q   quiet  -p <port>  SSH port\n'
+            printf '  -n   toggle line numbers  -p <port>  SSH port\n'
             exit 0
             ;;
         :) die "option -p requires a port number" ;;
@@ -251,29 +249,7 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 
 if [ "$IS_STDIN" = true ]; then
-    if [ "${CLIPSO_NO_SPINNER:-0}" = "0" ] && [ "$_NO_SPINNER" = "0" ] && { true >/dev/tty; } 2>/dev/null; then
-        # read first byte before starting spinner — avoids blocking /dev/tty during interactive prompts
-        _spin_idle() {
-            local s='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏' i=0
-            while true; do
-                printf "\r${CYAN}%s${RESET} running..." "${s:$((i % ${#s})):1}" >/dev/tty
-                sleep 0.1
-                i=$((i + 1))
-            done
-        }
-        # block until first byte arrives — command has started producing output
-        dd bs=1 count=1 > "$TMP" 2>/dev/null || true
-        if [ -s "$TMP" ]; then
-            _spin_idle &
-            SPIN_PID=$!
-            cat >> "$TMP"
-            kill "$SPIN_PID" 2>/dev/null || true
-            wait "$SPIN_PID" 2>/dev/null || true
-            printf "\r\033[K" >/dev/tty
-        fi
-    else
-        cat > "$TMP"
-    fi
+    cat > "$TMP"
 
 elif [ "$IS_REMOTE" = true ]; then
     require_cmd ssh
