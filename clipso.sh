@@ -251,40 +251,24 @@ fi
 
 if [ "$IS_STDIN" = true ]; then
     if [ "${CLIPSO_NO_SPINNER:-0}" = "0" ] && [ "$_NO_SPINNER" = "0" ] && { true >/dev/tty; } 2>/dev/null; then
-        # streaming: read line by line, display immediately, erase before final display
-        _tty_cols=$(tput cols 2>/dev/null || echo 80)
-        _phys_lines=0
-
-        _count_phys() {
-            local len=${#1} cols=$_tty_cols
-            echo $(( (len + cols - 1) / cols < 1 ? 1 : (len + cols - 1) / cols ))
+        # read first byte before starting spinner — avoids blocking /dev/tty during interactive prompts
+        _spin_idle() {
+            local s='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏' i=0
+            while true; do
+                printf "\r${CYAN}%s${RESET} running..." "${s:$((i % ${#s})):1}" >/dev/tty
+                sleep 0.1
+                i=$((i + 1))
+            done
         }
-
-        trap 'rm -f "$TMP" "$TMPERR"' EXIT INT TERM
-
-        while true; do
-            if IFS= read -t 0.05 -r _line; then
-                printf "%s\n" "$_line" >/dev/tty
-                printf "%s\n" "$_line" >> "$TMP"
-                _p=$(_count_phys "$_line")
-                _phys_lines=$((_phys_lines + _p))
-            else
-                # idle — process may be waiting for input; block until next line or EOF
-                if IFS= read -r _line; then
-                    printf "%s\n" "$_line" >/dev/tty
-                    printf "%s\n" "$_line" >> "$TMP"
-                    _p=$(_count_phys "$_line")
-                    _phys_lines=$((_phys_lines + _p))
-                else
-                    break
-                fi
-            fi
-        done
-
-        # erase all streamed lines before final display_with_privacy output
-        printf "\r\033[K" >/dev/tty
-        if [ "$_phys_lines" -gt 0 ]; then
-            printf "\033[%dA\033[J" "$_phys_lines" >/dev/tty
+        # block until first byte arrives — command has started producing output
+        dd bs=1 count=1 > "$TMP" 2>/dev/null || true
+        if [ -s "$TMP" ]; then
+            _spin_idle &
+            SPIN_PID=$!
+            cat >> "$TMP"
+            kill "$SPIN_PID" 2>/dev/null || true
+            wait "$SPIN_PID" 2>/dev/null || true
+            printf "\r\033[K" >/dev/tty
         fi
     else
         cat > "$TMP"
