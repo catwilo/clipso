@@ -43,8 +43,9 @@ CLIPSO_CFG="${XDG_CONFIG_HOME:-$HOME/.config}/clipso/config"
 CLIPSO_NUMBERS="${CLIPSO_NUMBERS:-1}"
 CLIPSO_ENABLED="${CLIPSO_ENABLED:-1}"
 CLIP_SOCK="${HOME}/.noemap-clip.sock"   # canonical mesh socket path
-ok()   { printf "${GREEN}[OK]${RESET}  ${*}\n" >/dev/tty; }
-warn() { printf "${YELLOW}[WARN]${RESET}  %s\n" "$*" >/dev/tty; }
+_TTY_OUT() { { true >/dev/tty; } 2>/dev/null && printf "$@" >/dev/tty || printf "$@" >&2; }
+ok()   { _TTY_OUT "${GREEN}[OK]${RESET}  ${*}\n"; }
+warn() { _TTY_OUT "${YELLOW}[WARN]${RESET}  %s\n" "$*"; }
 
 # cfg_write KEY VALUE — atomic upsert into CLIPSO_CFG (same-dir tmp + mv)
 cfg_write() {
@@ -680,9 +681,7 @@ else
     fi
     if [ -n "${CLIPSO_TO:-}" ]; then
         cp "$TMP_CLIP" "$TMP"
-        printf "%s\n" "$_summary" >> "$TMP"
         do_copy
-        cp "$TMP_DISPLAY" "$TMP"
         send_to_remotes
         if [ "${CLIPSO_NO_SUMMARY:-0}" = "1" ]; then
             : # remote handles its own copy
@@ -698,12 +697,8 @@ else
         done
         ok "${CYAN}[${_platform}]${RESET} ❯ [${_remotes_str}]  —  ${_BD}${_source}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
     else
-        if [ "${CLIPSO_NO_SUMMARY:-0}" = "0" ]; then
-            sed 's/\x1b\[[0-9;]*m//g' "$TMP_CLIP" > "$TMP"
-            printf "%s\n" "$_summary" >> "$TMP"
-            do_copy
-            cp "$TMP_DISPLAY" "$TMP"
-        fi
+        sed 's/\x1b\[[0-9;]*m//g' "$TMP_CLIP" > "$TMP"
+        do_copy
         ok "${CYAN}[${_platform}]${RESET}  —  ${_BD}${_source}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
     fi
 fi
