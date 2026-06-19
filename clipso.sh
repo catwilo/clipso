@@ -384,7 +384,7 @@ privacy_check() {
     awk -v p="$PRIVACY_INFO_FILE" \
         'BEGIN{while((getline ln<p)>0){split(ln,a,"\t");drop[a[1]]=a[3]}}
          {print (NR in drop)?drop[NR]:$0}' \
-        "$TMP" > "$TMPCLEAN" && mv "$TMPCLEAN" "$TMP"
+        "$TMP" > "$TMPCLEAN" # censura desactivada: TMP preservado sin modificar
 }
 
 display_with_privacy() {
@@ -627,7 +627,7 @@ else
     printf "\n"
     display_with_privacy
     printf "\n"
-    [ "${PRIVACY_HITS:-0}" -gt 0 ] && warn "privacy: ${PRIVACY_HITS} line(s) auto-removed — see red above"
+    [ "${PRIVACY_HITS:-0}" -gt 0 ] && warn "privacy: ${PRIVACY_HITS} line(s) detected  see red above"
     _lines="$(wc -l < "$TMP" | tr -d ' ')"
     _size="$(_fmt_size "$BYTES")"
     if [ "${IS_STDIN:-false}" = "true" ] || [ -z "${TARGET:-}" ]; then
