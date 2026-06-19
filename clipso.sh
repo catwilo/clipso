@@ -284,6 +284,7 @@ fi
 
 [ -s "$TMP" ] || { printf "VOID" > "$TMP"; }
 
+
 # ─────────────────────────────────────────────────────────────────────────────
 # privacy check — warn before copying sensitive content
 # ─────────────────────────────────────────────────────────────────────────────
@@ -310,20 +311,6 @@ privacy_check() {
     }
     function is_safe(s) {
         return(s=="1.1.1.1"||s=="8.8.8.8"||s=="8.8.4.4"||s=="9.9.9.9"||s=="1.0.0.1")
-    }
-    function msk(s,  r,  m,pad,i) {
-        r=s
-        while(match(r,/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/)) {
-            m=substr(r,RSTART,RLENGTH); pad=""
-            for(i=1;i<=length(m);i++) pad=pad"x"
-            r=substr(r,1,RSTART-1) pad substr(r,RSTART+RLENGTH)
-        }
-        while(match(r,/[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]/)) {
-            m=substr(r,RSTART,RLENGTH); pad=""
-            for(i=1;i<=length(m);i++) pad=pad"x"
-            r=substr(r,1,RSTART-1) pad substr(r,RSTART+RLENGTH)
-        }
-        return (length(r)>100)?substr(r,1,100)"...":r
     }
     function nontrivial(v,  lv) {
         lv=tolower(v)
@@ -369,35 +356,25 @@ privacy_check() {
                 tag="PUB-IP"; break
             }
         }
-        if(tag) print NR "\t" tag "\t" msk($0)
+        if(tag) print NR "\t" tag "\t" $0
     }
     ' "$TMP" > "$PRIV_INFO"
     if [ ! -s "$PRIV_INFO" ]; then rm -f "$PRIV_INFO"; return 0; fi
     PRIVACY_HITS=$(wc -l < "$PRIV_INFO" | tr -d ' ')
     PRIVACY_INFO_FILE="$PRIV_INFO"
-    # TMP_DISPLAY: original sin censurar (para tty); TMP queda censurado (para clipboard)
-    TMP_DISPLAY="$(mktemp "${TMPDIR:-/tmp}/clipso-disp.XXXXXX")"
-    cp "$TMP" "$TMP_DISPLAY"
-    trap 'rm -f "$TMP" "$TMPERR" "${PRIVACY_INFO_FILE:-}" "${TMP_DISPLAY:-}"' EXIT INT TERM
-    local TMPCLEAN
-    TMPCLEAN="$(mktemp "${TMPDIR:-/tmp}/clipso-clean.XXXXXX")"
-    awk -v p="$PRIVACY_INFO_FILE" \
-        'BEGIN{while((getline ln<p)>0){split(ln,a,"\t");drop[a[1]]=a[3]}}
-         {print (NR in drop)?drop[NR]:$0}' \
-        "$TMP" > "$TMPCLEAN" # censura desactivada: TMP preservado sin modificar
 }
 
 display_with_privacy() {
     local nums="${CLIPSO_NUMBERS:-1}"
     local _tty; { true >/dev/tty; } 2>/dev/null && _tty=/dev/tty || _tty=/dev/stderr
     if [ "${PRIVACY_HITS:-0}" -gt 0 ] && [ -f "${PRIVACY_INFO_FILE:-}" ]; then
-        local _src="${TMP_DISPLAY:-$TMP}"
+        local _src="$TMP"
         awk -v p="$PRIVACY_INFO_FILE" -v red="${RED}" -v cyan="${CYAN}" -v rst="${RESET}" -v nums="$nums" \
         'BEGIN{while((getline ln<p)>0){split(ln,a,"\t");fl[a[1]]=a[3]}}
          {if(NR in fl) { if(nums=="1") printf "%s%4d  %s%s\n",red,NR,$0,rst; else printf "%s%s%s\n",red,$0,rst }
           else          { if(nums=="1") printf "%s%4d%s  %s\n",cyan,NR,rst,$0; else print }}' "$_src" > "$_tty"
     else
-        local _src="${TMP_DISPLAY:-$TMP}"
+        local _src="$TMP"
         if [ "$nums" = "1" ]; then
             awk -v c="${CYAN}" -v r="${RESET}" '{printf "%s%4d%s  %s\n",c,NR,r,$0}' "$_src" > "$_tty"
         else
@@ -544,6 +521,7 @@ CLIP_BACKEND="unknown"
 # ─────────────────────────────────────────────────────────────────────────────
 
 do_copy() {
+    # clipboard must receive the untouched original, never privacy-mangled content
     case "$CLIP_ENV" in
         termux)  copy_termux  ;;
         wayland) copy_wayland ;;
@@ -615,15 +593,6 @@ if (( BYTES > PAGER_LIMIT )); then
     paginate
 else
     # preserve colored copy for tty display; strip ANSI only for clipboard
-    # TMP_DISPLAY set by privacy_check if hits found; set here otherwise
-    if [ -z "${TMP_DISPLAY:-}" ]; then
-        TMP_DISPLAY="$(mktemp "${TMPDIR:-/tmp}/clipso-disp.XXXXXX")"
-        cp "$TMP" "$TMP_DISPLAY"
-    fi
-    TMP_CLIP="$(mktemp "${TMPDIR:-/tmp}/clipso-clip.XXXXXX")"
-    cp "$TMP" "$TMP_CLIP"
-    trap 'rm -f "$TMP" "$TMPERR" "${PRIVACY_INFO_FILE:-}" "${TMP_DISPLAY:-}" "${TMP_CLIP:-}"' EXIT INT TERM
-    cp "$TMP_DISPLAY" "$TMP"
     printf "\n"
     display_with_privacy
     printf "\n"
@@ -656,7 +625,6 @@ else
         _summary="[OK]  [${_platform}] -- ${_source} -- ${_lines} lines * ${_size}"
     fi
     if [ -n "${CLIPSO_TO:-}" ]; then
-        cp "$TMP_CLIP" "$TMP"
         do_copy
         send_to_remotes
         if [ "${CLIPSO_NO_SUMMARY:-0}" = "1" ]; then
@@ -673,7 +641,7 @@ else
         done
         ok "${CYAN}[${_platform}]${RESET} ❯ [${_remotes_str}]  —  ${_BD}${_source}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
     else
-        sed 's/\x1b\[[0-9;]*m//g' "$TMP_CLIP" > "$TMP"
+        sed 's/\x1b\[[0-9;]*m//g' "$TMP" > "$TMP.ansi" && mv "$TMP.ansi" "$TMP"
         do_copy
         ok "${CYAN}[${_platform}]${RESET}  —  ${_BD}${_source}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
     fi
