@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# clipso/install.sh — idempotent installer
+# clipso/install.sh — idempotent installer (atomic copy, never symlink)
 #
 # usage:
 #   bash install.sh          install
@@ -52,12 +52,28 @@ else
     die "no writable bin dir found"
 fi
 
-ln -sf "$CLIPSO_SH" "$BINDIR/clipso"
-ok "linked clipso → $BINDIR/clipso"
-# also fix ~/.local/bin if it exists and differs from BINDIR (stale binary guard)
+# Atomic copy: stage into temp, verify, then move. Never symlink.
+_install_atomic() {
+    local src="$1" dst="$2"
+    local dstdir tmp
+    dstdir="$(dirname "$dst")"
+    mkdir -p "$dstdir"
+    tmp="$(mktemp -d "$dstdir/.clipso-tmp.XXXXXX")/clipso"
+    if cp -f "$src" "$tmp"; then
+        chmod +x "$tmp"
+        rm -f "$dst"
+        mv -f "$tmp" "$dst" && ok "installed $dst" || die "failed to move $tmp to $dst"
+    else
+        die "failed to copy $src to $tmp"
+    fi
+    rm -rf "$(dirname "$tmp")" 2>/dev/null || true
+}
+
+_install_atomic "$CLIPSO_SH" "$BINDIR/clipso"
+
+# also install to ~/.local/bin if it differs from BINDIR (stale binary guard)
 if [ "$BINDIR" != "$HOME/.local/bin" ] && [ -d "$HOME/.local/bin" ]; then
-    ln -sf "$CLIPSO_SH" "$HOME/.local/bin/clipso"
-    ok "linked clipso → $HOME/.local/bin/clipso (stale guard)"
+    _install_atomic "$CLIPSO_SH" "$HOME/.local/bin/clipso"
 fi
 
 _BEG='# >>> clipso >>>'
