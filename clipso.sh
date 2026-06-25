@@ -145,18 +145,34 @@ if [ "${1:-}" = "--set-to" ]; then
     cfg_write CLIPSO_ENABLED 1
     ok "target set to: $2"; exit 0
 fi
-while getopts ":p:nh" opt; do
+
+#  run subcommand: clipso run <cmd...>  invoke pty-run, process log, clean up
+if [ "${1:-}" = "run" ]; then
+    shift
+    [ $# -ge 1 ] || { printf '[ERROR] clipso run requires a command\n' >&2; exit 1; }
+    _pty_log="${XDG_CACHE_HOME:-$HOME/.cache}/pty-run/last.log"
+    pty-run "$@"
+    _run_rc=$?
+    if [ -f "$_pty_log" ]; then
+        "$0" "$_pty_log"
+        rm -f "$_pty_log"
+    fi
+    exit "$_run_rc"
+fi
+# handle --toggle-numbers before getopts (long option)
+if [ "${1:-}" = "--toggle-numbers" ]; then
+    if [ "${CLIPSO_NUMBERS:-1}" = "1" ]; then
+        CLIPSO_NUMBERS=0; msg="line numbers OFF"
+    else
+        CLIPSO_NUMBERS=1; msg="line numbers ON"
+    fi
+    cfg_write CLIPSO_NUMBERS "$CLIPSO_NUMBERS"
+    ok "saved: $msg ($CLIPSO_CFG)"; exit 0
+fi
+
+while getopts ":p:h" opt; do
     case "$opt" in
         p) SSH_PORT="$OPTARG" ;;
-        n)
-            if [ "${CLIPSO_NUMBERS:-1}" = "1" ]; then
-                CLIPSO_NUMBERS=0; msg="line numbers OFF"
-            else
-                CLIPSO_NUMBERS=1; msg="line numbers ON"
-            fi
-            cfg_write CLIPSO_NUMBERS "$CLIPSO_NUMBERS"
-            ok "saved: $msg ($CLIPSO_CFG)"; exit 0
-            ;;
         h)
             printf 'clipso — copy local files, remote files, or stdin to clipboard\n\n'
             printf 'usage:\n'
@@ -173,7 +189,7 @@ while getopts ":p:nh" opt; do
             printf '  clipso target on                   re-enable remote send\n'
             printf '  clipso target status               show current target config\n'
             printf '\nflags:\n'
-            printf '  -n   toggle line numbers  -p <port>  SSH port\n'
+            printf '  --toggle-numbers   toggle line numbers on/off  -p <port>  SSH port\n'
             exit 0
             ;;
         :) die "option -p requires a port number" ;;
@@ -211,6 +227,7 @@ safe_timeout() {
 TMP="$(mktemp "${TMPDIR:-/tmp}/clipso.XXXXXX")"
 TMPERR="$(mktemp "${TMPDIR:-/tmp}/clipso-err.XXXXXX")"
 trap 'rm -f "$TMP" "$TMPERR"' EXIT INT TERM
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # input detection
@@ -276,6 +293,8 @@ else
     [ -f "$TARGET" ] || die "file not found: $TARGET"
     [ -r "$TARGET" ] || die "file not readable: $TARGET"
     cat "$TARGET" > "$TMP"
+    _pty_log_path="${XDG_CACHE_HOME:-$HOME/.cache}/pty-run/last.log"
+    [ "$TARGET" = "$_pty_log_path" ] && rm -f "$_pty_log_path"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -585,6 +604,16 @@ paginate() {
     done
     rm -rf "$chunk_dir"
 }
+
+# nesting guard: if called from within clipso (e.g. pty-run -> clipso -> clipso),
+# act as pass-through -- copy only, no display, no remote send, no summary.
+if [ "${CLIPSO_NESTED:-0}" = "1" ]; then
+  export CLIPSO_NESTED=1
+  cat > "$TMP"
+  do_copy
+  exit $?
+fi
+export CLIPSO_NESTED=1
 
 privacy_check
 [ "${PRIVACY_HITS:-0}" -gt 0 ] && BYTES="$(wc -c < "$TMP" | tr -d ' ')"
