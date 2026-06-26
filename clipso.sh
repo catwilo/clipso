@@ -70,6 +70,19 @@ _fmt_size() {
 }
 die()  { printf "${RED}[ERROR]${RESET} %s\n" "$*" >&2; exit 1; }
 
+# _play_confirm — play a short sound on successful copy (Termux only, background)
+# Uses miau-dio WAV if present; falls back to a synthetic beep via sox.
+_CONFIRM_WAV="${HOME}/.local/share/miau-dio/audio/a00287d0.wav"
+_play_confirm() {
+    [ "${CLIP_ENV:-}" = "termux" ] || return 0
+    if [ -f "$_CONFIRM_WAV" ] && command -v play >/dev/null 2>&1; then
+        play -q "$_CONFIRM_WAV" &>/dev/null &
+    elif command -v play >/dev/null 2>&1; then
+        play -q -n synth 0.08 sine 880 vol 0.6 &>/dev/null &
+    fi
+}
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # args
 # ─────────────────────────────────────────────────────────────────────────────
@@ -669,9 +682,11 @@ else
             fi
         done
         ok "${CYAN}[${_platform}]${RESET} ❯ [${_remotes_str}]  —  ${_BD}${_source}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
+        _play_confirm
     else
         sed 's/\x1b\[[0-9;]*m//g' "$TMP" > "$TMP.ansi" && mv "$TMP.ansi" "$TMP"
         do_copy
         ok "${CYAN}[${_platform}]${RESET}  —  ${_BD}${_source}${RESET}  —  ${_D}${_lines} lines · ${_size}${RESET}"
+        _play_confirm
     fi
 fi
