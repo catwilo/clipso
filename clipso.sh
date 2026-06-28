@@ -159,21 +159,36 @@ if [ "${1:-}" = "--set-to" ]; then
     ok "target set to: $2"; exit 0
 fi
 
-#  run subcommand: clipso run <cmd...>  invoke pty-run, process log, clean up
+#  run subcommand: clipso run <script> -- execute a script file in a PTY and copy output
 if [ "${1:-}" = "run" ]; then
     shift
-    [ $# -ge 1 ] || { printf '[ERROR] clipso run requires a command\n' >&2; exit 1; }
-    _pty_log="${XDG_CACHE_HOME:-$HOME/.cache}/pty-run/last.log"
-    if [ -f "$_pty_log" ] && ! pgrep -f "script .*${_pty_log}" >/dev/null 2>&1; then
-        warn "stale pty-run lock found -- removing: $_pty_log"
-        rm -f "$_pty_log"
-    fi
-    pty-run "$@"
+    [ $# -eq 1 ] || { printf '[ERROR] clipso run requires exactly one argument: a script file\n' >&2; exit 1; }
+    _run_script="$1"
+    [ -f "$_run_script" ] || { printf '[ERROR] clipso run: file not found: %s\n' "$_run_script" >&2; exit 1; }
+    [ -r "$_run_script" ] || { printf '[ERROR] clipso run: file not readable: %s\n' "$_run_script" >&2; exit 1; }
+
+    # internalized pty-run logic
+    _run_log_dir="${XDG_CACHE_HOME:-$HOME/.cache}/pty-run"
+    mkdir -p "$_run_log_dir"
+    _run_log="$_run_log_dir/last.log"
+    [ ! -f "$_run_log" ] || { printf '[ERROR] clipso run: stale pty log exists -- remove manually: %s\n' "$_run_log" >&2; exit 1; }
+
+    _run_shell="${SHELL:-/bin/sh}"
+    _run_inner="$_run_shell $_run_script"
+
+    _clean_run_log() {
+        sed -i '1{/^Script started/d}; ${/^Script done/d}; s/\x1b\[[0-9;]*[mGKHFABCDJsu]//g; s/\x1b\[?[0-9;]*[hl]//g; s/\r//g' "$1"
+    }
+
+    printf '\033[?1049h\033[2J\033[H'
+    COLUMNS=$(tput cols 2>/dev/null || echo 80) LINES=$(tput lines 2>/dev/null || echo 24) \
+        script -q -e -O "$_run_log" -c "$_run_inner"
     _run_rc=$?
-    if [ -f "$_pty_log" ]; then
-        "$0" "$_pty_log"
-        rm -f "$_pty_log"
-    fi
+    printf '\033[?1049l'
+
+    _clean_run_log "$_run_log"
+    "$0" "$_run_log"
+    rm -f "$_run_log"
     exit "$_run_rc"
 fi
 # handle --toggle-numbers before getopts (long option)
@@ -310,8 +325,6 @@ else
     [ -f "$TARGET" ] || die "file not found: $TARGET"
     [ -r "$TARGET" ] || die "file not readable: $TARGET"
     cat "$TARGET" > "$TMP"
-    _pty_log_path="${XDG_CACHE_HOME:-$HOME/.cache}/pty-run/last.log"
-    [ "$TARGET" = "$_pty_log_path" ] && rm -f "$_pty_log_path"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────

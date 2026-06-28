@@ -101,5 +101,38 @@ _wire_rc() {
 _wire_rc "$HOME/.zshrc"
 [ -f "$HOME/.bashrc" ] && _wire_rc "$HOME/.bashrc"
 
+_BEG_ZSH='# >>> clipso-keybinding >>>'
+_END_ZSH='# <<< clipso-keybinding <<<'
+
+_wire_keybinding() {
+    local rc="$1"
+    [ -f "$rc" ] || return 0
+    [ -L "$rc" ] && warn "$(basename "$rc") is a symlink — skipping keybinding inject" && return 0
+    local tmp
+    tmp="$(mktemp "${TMPDIR:-/tmp}/clipso-kb.XXXXXX")"
+    awk -v b="$_BEG_ZSH" -v e="$_END_ZSH" '
+        $0==b {skip=1} skip && $0==e {skip=0; next} !skip {print}
+    ' "$rc" > "$tmp"
+    {
+        cat "$tmp"
+        printf '%s\n' "$_BEG_ZSH"
+        printf '_wrap_clipso() {\n'
+        printf '  [[ -z $BUFFER ]] && return\n'
+        printf '  local _tmp\n'
+        printf '  _tmp=$(mktemp "${TMPDIR:-/tmp}/clipso-cmd.XXXXXX")\n'
+        printf '  printf "#!/usr/bin/env zsh\\n%s\\n" "$BUFFER" > "$_tmp"\n'
+        printf '  BUFFER="clipso run $_tmp"\n'
+        printf '  zle accept-line\n'
+        printf '}\n'
+        printf 'zle -N _wrap_clipso\n'
+        printf 'bindkey "^[g" _wrap_clipso\n'
+        printf '%s\n' "$_END_ZSH"
+    } > "$rc"
+    rm -f "$tmp"
+    ok "wired keybinding in $rc"
+}
+
+_wire_keybinding "$HOME/.zshrc"
+
 ok "done — reload shell:"
 printf '  source ~/.zshrc\n'
