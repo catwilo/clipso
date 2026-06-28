@@ -164,6 +164,10 @@ if [ "${1:-}" = "run" ]; then
     shift
     [ $# -ge 1 ] || { printf '[ERROR] clipso run requires a command\n' >&2; exit 1; }
     _pty_log="${XDG_CACHE_HOME:-$HOME/.cache}/pty-run/last.log"
+    if [ -f "$_pty_log" ] && ! pgrep -f "script .*${_pty_log}" >/dev/null 2>&1; then
+        warn "stale pty-run lock found -- removing: $_pty_log"
+        rm -f "$_pty_log"
+    fi
     pty-run "$@"
     _run_rc=$?
     if [ -f "$_pty_log" ]; then
