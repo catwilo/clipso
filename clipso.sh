@@ -187,8 +187,15 @@ if [ "${1:-}" = "run" ]; then
     printf '\033[?1049l'
 
     _clean_run_log "$_run_log"
+    # prepend the command (skip shebang line) so the clipboard shows what ran
+    _run_cmd="$(tail -n +2 "$_run_script" | head -1)"
+    _run_tmp="$(mktemp "${TMPDIR:-/tmp}/clipso-run-prepend.XXXXXX")"
+    { printf '$ %s
+' "$_run_cmd"; cat "$_run_log"; } > "$_run_tmp"
+    mv "$_run_tmp" "$_run_log"
     "$0" "$_run_log"
     rm -f "$_run_log"
+    rm -f "$_run_script"
     exit "$_run_rc"
 fi
 # handle --toggle-numbers before getopts (long option)
