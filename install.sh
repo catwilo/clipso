@@ -121,7 +121,7 @@ _wire_keybinding() {
         printf '  local _c=$BUFFER\n'
         printf '  local _tmp\n'
         printf '  _tmp=$(mktemp "${TMPDIR:-/tmp}/clipso-cmd.XXXXXX")\n'
-        printf '  printf "#!/usr/bin/env zsh\\n%%s\\n" "$_c" > "$_tmp"\n'
+        printf '  printf "#!/usr/bin/env bash\\n%%s\\n" "$_c" > "$_tmp"\n'
         printf '  print -s "$_c"\n'
         printf '  BUFFER="clipso run $_tmp"\n'
         printf '  zle accept-line\n'
