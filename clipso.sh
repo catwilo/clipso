@@ -159,6 +159,17 @@ if [ "${1:-}" = "--set-to" ]; then
     ok "target set to: $2"; exit 0
 fi
 
+#  reset subcommand: clipso reset -- restore the terminal after an interrupted
+#  pty run (leaves the alternate screen, restores the cursor, sanitizes modes).
+#  Use when a previous run was killed mid-flight and left the terminal stuck.
+if [ "${1:-}" = "reset" ]; then
+    printf '\033[?1049l\033[?25h'
+    stty sane 2>/dev/null
+    command -v tput >/dev/null 2>&1 && tput rmcup 2>/dev/null
+    rm -f "${XDG_CACHE_HOME:-$HOME/.cache}/pty-run/last.log"
+    exit 0
+fi
+
 #  run subcommand: clipso run <script> -- execute a script file in a PTY and copy output
 if [ "${1:-}" = "run" ]; then
     shift
@@ -173,6 +184,17 @@ if [ "${1:-}" = "run" ]; then
     _run_log="$_run_log_dir/last.log"
     [ ! -f "$_run_log" ] || { printf '[ERROR] clipso run: stale pty log exists -- remove manually: %s\n' "$_run_log" >&2; exit 1; }
 
+    # Two separate guarantees with different scopes:
+    # EXIT (always): remove temp files so the stale pty log condition above
+    #   can never trigger on a subsequent run. Touches no terminal state, so
+    #   the normal render/output flow below is never disturbed.
+    # INT/TERM/HUP (interruption only): the run was killed mid-flight, so
+    #   leave the alternate screen and restore the cursor -- otherwise the
+    #   terminal stays stuck. Not done on normal exit, where clipso restores
+    #   the screen itself as part of its usual flow.
+    trap 'rm -f "$_run_log" "$_run_script"' EXIT
+    trap 'printf "\033[?1049l\033[?25h"' INT TERM HUP
+
     _run_shell="${SHELL:-/bin/sh}"
     _run_inner="$_run_shell $_run_script"
 
@@ -184,7 +206,12 @@ if [ "${1:-}" = "run" ]; then
     COLUMNS=$(tput cols 2>/dev/null || echo 80) LINES=$(tput lines 2>/dev/null || echo 24) \
         script -q -e -O "$_run_log" -c "$_run_inner"
     _run_rc=$?
-    printf '\033[?1049l'
+
+    # Leave the alternate screen and restore the cursor BEFORE rendering, so
+    # the normalized output, line numbers and the [OK] line are painted on the
+    # normal screen where they stay visible -- not inside the pty buffer that
+    # gets discarded on exit. The INT/TERM/HUP trap covers interrupted runs.
+    printf '\033[?1049l\033[?25h'
 
     _clean_run_log "$_run_log"
     # prepend the command (skip shebang line) so the clipboard shows what ran
@@ -193,9 +220,11 @@ if [ "${1:-}" = "run" ]; then
     { printf '$ %s
 ' "$_run_cmd"; cat "$_run_log"; } > "$_run_tmp"
     mv "$_run_tmp" "$_run_log"
+    # Copy whatever the command produced -- normal output or an error
+    # message -- to the clipboard. Runs regardless of the command's exit
+    # code; cleanup is handled by the trap above.
     "$0" "$_run_log"
-    rm -f "$_run_log"
-    rm -f "$_run_script"
+    # Preserve and surface the real exit code of the executed command.
     exit "$_run_rc"
 fi
 # handle --toggle-numbers before getopts (long option)
