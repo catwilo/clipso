@@ -195,7 +195,11 @@ if [ "${1:-}" = "run" ]; then
     trap 'rm -f "$_run_log" "$_run_script"' EXIT
     trap 'printf "\033[?1049l\033[?25h"' INT TERM HUP
 
-    _run_shell="${SHELL:-/bin/sh}"
+    # Run scripts under bash, not the user's interactive $SHELL (often zsh):
+    # bash is faster for non-interactive scripts, predictable in a pty, and
+    # avoids interactive-shell side effects that left the terminal stuck on
+    # a failing command. Fall back to sh only if bash is unavailable.
+    _run_shell="$(command -v bash || echo /bin/sh)"
     _run_inner="$_run_shell $_run_script"
 
     _clean_run_log() {
