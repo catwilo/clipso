@@ -207,9 +207,17 @@ if [ "${1:-}" = "run" ]; then
     }
 
     printf '\033[?1049h\033[2J\033[H'
-    COLUMNS=$(tput cols 2>/dev/null || echo 80) LINES=$(tput lines 2>/dev/null || echo 24) \
-        script -q -e -O "$_run_log" -c "$_run_inner"
-    _run_rc=$?
+    # set -e would kill this script mid-flight on a failing inner command,
+    # before the alt-screen close below ever runs -- leaving the terminal
+    # stuck in the alternate screen. The if/else is exempt from set -e by
+    # shell design, so a failing inner command is handled explicitly here
+    # instead of aborting the whole script.
+    if COLUMNS=$(tput cols 2>/dev/null || echo 80) LINES=$(tput lines 2>/dev/null || echo 24) \
+        script -q -e -O "$_run_log" -c "$_run_inner"; then
+        _run_rc=0
+    else
+        _run_rc=$?
+    fi
 
     # Leave the alternate screen and restore the cursor BEFORE rendering, so
     # the normalized output, line numbers and the [OK] line are painted on the
@@ -218,11 +226,10 @@ if [ "${1:-}" = "run" ]; then
     printf '\033[?1049l\033[?25h'
 
     _clean_run_log "$_run_log"
-    # prepend the command (skip shebang line) so the clipboard shows what ran
-    _run_cmd="$(tail -n +2 "$_run_script" | head -1)"
+    # prepend the command block (skip shebang line) so the clipboard shows everything that ran
+    _run_cmd="$(tail -n +2 "$_run_script")"
     _run_tmp="$(mktemp "${TMPDIR:-/tmp}/clipso-run-prepend.XXXXXX")"
-    { printf '$ %s
-' "$_run_cmd"; cat "$_run_log"; } > "$_run_tmp"
+    { printf '%s\n' "$_run_cmd" | sed 's/^/$ /'; cat "$_run_log"; } > "$_run_tmp"
     mv "$_run_tmp" "$_run_log"
     # Copy whatever the command produced -- normal output or an error
     # message -- to the clipboard. Runs regardless of the command's exit
