@@ -249,6 +249,12 @@ if [ "${1:-}" = "--toggle-numbers" ]; then
     ok "saved: $msg ($CLIPSO_CFG)"; exit 0
 fi
 
+# --help is not recognized by getopts (long-form flags aren't); normalize
+# it to -h here so the existing getopts block below handles it as usual.
+if [ "${1:-}" = "--help" ]; then
+    set -- -h "${@:2}"
+fi
+
 while getopts ":p:h" opt; do
     case "$opt" in
         p) SSH_PORT="$OPTARG" ;;
