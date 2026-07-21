@@ -70,17 +70,9 @@ _fmt_size() {
 }
 die()  { printf "${RED}[ERROR]${RESET} %s\n" "$*" >&2; exit 1; }
 
-# _play_confirm — play a short sound on successful copy (Termux only, background)
-# Uses miau-dio WAV if present; falls back to a synthetic beep via sox.
-_CONFIRM_WAV="${HOME}/.local/share/miau-dio/audio/a00287d0.wav"
-_play_confirm() {
-    [ "${CLIP_ENV:-}" = "termux" ] || return 0
-    if [ -f "$_CONFIRM_WAV" ] && command -v play >/dev/null 2>&1; then
-        play -q "$_CONFIRM_WAV" &>/dev/null &
-    elif command -v play >/dev/null 2>&1; then
-        play -q -n synth 0.08 sine 880 vol 0.6 &>/dev/null &
-    fi
-}
+# _play_confirm — extracted to play-confirm.sh (mandatory dependency)
+[ -f "$(dirname "$0")/play-confirm.sh" ] || die "missing dependency: play-confirm.sh"
+source "$(dirname "$0")/play-confirm.sh"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
