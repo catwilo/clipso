@@ -70,10 +70,12 @@ _install_atomic() {
 }
 
 _install_atomic "$CLIPSO_SH" "$BINDIR/clipso"
+_install_atomic "$SCRIPT_DIR/play-confirm.sh" "$BINDIR/play-confirm.sh"
 
 # also install to ~/.local/bin if it differs from BINDIR (stale binary guard)
 if [ "$BINDIR" != "$HOME/.local/bin" ] && [ -d "$HOME/.local/bin" ]; then
-    _install_atomic "$CLIPSO_SH" "$HOME/.local/bin/clipso"
+_install_atomic "$CLIPSO_SH" "$HOME/.local/bin/clipso"
+_install_atomic "$SCRIPT_DIR/play-confirm.sh" "$HOME/.local/bin/play-confirm.sh"
 fi
 
 _BEG='# >>> clipso >>>'
