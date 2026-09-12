@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
-# clipso/install.sh — idempotent installer (atomic copy, never symlink)
+# clipso/install.sh — idempotent installer (symlink, never copy)
 #
 # usage:
 #   bash install.sh          install
 #   bash install.sh verify   verify only (no changes)
+#
+# PHILOSOPHY (toolkit standard): SYMLINK into the repo, never copy. The
+# installed clipso is a symlink to clipso.sh; a `git pull` updates it with
+# no reinstall. Verification asserts the symlink target is the repo file.
+# Sounds (WAV) are generated into the clipso config dir by sounds/generate.sh;
+# they are not part of the repo.
 
 set -Eeuo pipefail
 
@@ -28,21 +34,11 @@ else
 fi
 SCRIPT_DIR="$(cd "$(dirname "$_self")" && pwd -P)"
 CLIPSO_SH="$SCRIPT_DIR/clipso.sh"
+PLAY_CONFIRM="$SCRIPT_DIR/play-confirm.sh"
 
 [ -f "$CLIPSO_SH" ] || die "clipso.sh not found at $CLIPSO_SH"
+[ -f "$PLAY_CONFIRM" ] || die "play-confirm.sh not found at $PLAY_CONFIRM"
 [ -x "$CLIPSO_SH" ] || chmod +x "$CLIPSO_SH"
-
-_do_verify() {
-    local found target
-    found="$(command -v clipso 2>/dev/null || true)"
-    [ -n "$found" ] || { warn "clipso not in PATH — source your shell rc"; return 1; }
-    target="$(readlink -f "$found" 2>/dev/null || echo "$found")"
-    [ "$target" = "$CLIPSO_SH" ] || { warn "clipso → $target (expected $CLIPSO_SH)"; return 1; }
-    ok "clipso → $found"
-    echo "verify" | clipso - >/dev/null 2>&1 && ok "clipso runs OK" || { warn "clipso run failed"; return 1; }
-}
-
-if [ "${1:-}" = verify ]; then _do_verify; exit $?; fi
 
 if [ -n "${PREFIX:-}" ] && [ -d "${PREFIX}/bin" ]; then
     BINDIR="${PREFIX}/bin"
@@ -52,30 +48,42 @@ else
     die "no writable bin dir found"
 fi
 
-# Atomic copy: stage into temp, verify, then move. Never symlink.
-_install_atomic() {
-    local src="$1" dst="$2"
-    local dstdir tmp
-    dstdir="$(dirname "$dst")"
-    mkdir -p "$dstdir"
-    tmp="$(mktemp -d "$dstdir/.clipso-tmp.XXXXXX")/clipso"
-    if cp -f "$src" "$tmp"; then
-        chmod +x "$tmp"
-        rm -f "$dst"
-        mv -f "$tmp" "$dst" && ok "installed $dst" || die "failed to move $tmp to $dst"
-    else
-        die "failed to copy $src to $tmp"
-    fi
-    rm -rf "$(dirname "$tmp")" 2>/dev/null || true
+_do_verify() {
+    local found target
+    found="$(command -v clipso 2>/dev/null || true)"
+    [ -n "$found" ] || { warn "clipso not in PATH — source your shell rc"; return 1; }
+    target="$(readlink -f "$found" 2>/dev/null || echo "$found")"
+    [ "$target" = "$CLIPSO_SH" ] || { warn "clipso -> $target (expected $CLIPSO_SH)"; return 1; }
+    [ -L "$found" ] || { warn "clipso is not a symlink -> $found"; return 1; }
+    ok "clipso -> $found"
+    echo "verify" | clipso - >/dev/null 2>&1 && ok "clipso runs OK" || { warn "clipso run failed"; return 1; }
 }
 
-_install_atomic "$CLIPSO_SH" "$BINDIR/clipso"
-_install_atomic "$SCRIPT_DIR/play-confirm.sh" "$BINDIR/play-confirm.sh"
+if [ "${1:-}" = verify ]; then _do_verify; exit $?; fi
 
-# also install to ~/.local/bin if it differs from BINDIR (stale binary guard)
+_link() {
+    local src="$1" dst="$2"
+    ln -sfn "$src" "$dst"
+    ok "linked $dst -> $src"
+}
+
+_link "$CLIPSO_SH" "$BINDIR/clipso"
+_link "$PLAY_CONFIRM" "$BINDIR/play-confirm.sh"
+
+# Clear stale copies in ~/.local/bin when BINDIR is elsewhere; a copy there
+# would shadow the link when ~/.local/bin precedes $PREFIX/bin in PATH.
 if [ "$BINDIR" != "$HOME/.local/bin" ] && [ -d "$HOME/.local/bin" ]; then
-_install_atomic "$CLIPSO_SH" "$HOME/.local/bin/clipso"
-_install_atomic "$SCRIPT_DIR/play-confirm.sh" "$HOME/.local/bin/play-confirm.sh"
+    for _n in clipso play-confirm.sh; do
+        if [ -e "$HOME/.local/bin/$_n" ] && [ ! -L "$HOME/.local/bin/$_n" ]; then
+            rm -f "$HOME/.local/bin/$_n"
+            ok "removed stale copy $HOME/.local/bin/$_n"
+        fi
+    done
+fi
+
+# Generate confirmation sounds (idempotent; safe to re-run).
+if [ -f "$SCRIPT_DIR/sounds/generate.sh" ]; then
+    bash "$SCRIPT_DIR/sounds/generate.sh" || warn "sound generation reported issues"
 fi
 
 _BEG='# >>> clipso >>>'
