@@ -65,12 +65,16 @@ _play_confirm() {
         return 0
     }
 
+    # Play in the background: the confirmation sound must never block the
+    # shell -- the user keeps typing while it plays. setsid detaches it from
+    # the controlling terminal; disown keeps it out of the shell job table.
     case "$_pc_player" in
-        paplay) "$_pc_player" "$_pc_next" >/dev/null 2>&1 ;;
-        play)   "$_pc_player" -q "$_pc_next" >/dev/null 2>&1 ;;
-        aplay)  "$_pc_player" -q "$_pc_next" >/dev/null 2>&1 ;;
-        mpv)    "$_pc_player" --no-video --really-quiet "$_pc_next" >/dev/null 2>&1 ;;
-    esac || { printf '[WARN] play-confirm: playback failed: %s\n' "$_pc_next" >&2; return 0; }
+        paplay) setsid "$_pc_player" "$_pc_next" >/dev/null 2>&1 & ;;
+        play)   setsid "$_pc_player" -q "$_pc_next" >/dev/null 2>&1 & ;;
+        aplay)  setsid "$_pc_player" -q "$_pc_next" >/dev/null 2>&1 & ;;
+        mpv)    setsid "$_pc_player" --no-video --really-quiet "$_pc_next" >/dev/null 2>&1 & ;;
+    esac
+    disown 2>/dev/null || true
 
     printf '%s\n' "$_pc_next_n" > "$_pc_last_file"
     return 0
