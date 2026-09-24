@@ -27,7 +27,7 @@ _run_shell="$(command -v bash || echo /bin/sh)"
 _run_inner="$_run_shell $_run_script"
 
 _clean_run_log() {
-    sed -i '1{/^Script started/d}; ${/^Script done/d}; s/\x1b\[[0-9;]*[mGKHFABCDJsu]//g; s/\x1b\[?[0-9;]*[hl]//g; s/\r//g' "$1"
+    sed -i '1{/^Script started/d}; ${/^Script done/d}; s/\x1b\[[0-9;]*[GKHFABCDJsu]//g; s/\x1b\[?[0-9;]*[hl]//g; s/\r//g' "$1"
 }
 
 printf '\033[?1049h\033[2J\033[H'

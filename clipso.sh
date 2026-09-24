@@ -100,7 +100,7 @@ remote target management:
   clipso target status               show current target config
 
 config (in ~/.config/clipso/config):
-  CLIPSO_STRIP_ANSI=1   strip ANSI escape codes from clipboard payload (default 0)
+  CLIPSO_STRIP_ANSI=0   preserve ANSI in clipboard payload (default 1: strip for paste)
   CLIPSO_NUMBERS=0      disable line numbers in tty display
   CLIPSO_PRIVACY=0      disable sensitive-content warnings
 
@@ -154,13 +154,6 @@ PAGER_LIMIT=$((900 * 1024))
 
 CLIP_ENV="$(detect_env)"
 
-# Optional ANSI strip (opt-in). Default preserves colors.
-if [ "${CLIPSO_STRIP_ANSI:-0}" = "1" ]; then
-    _stripped="$TMP.strip"
-    sed 's/\x1b\[[0-9;]*m//g' "$TMP" > "$_stripped" && mv "$_stripped" "$TMP"
-    BYTES="$(wc -c < "$TMP" | tr -d ' ')"
-fi
-
 if (( BYTES > PAGER_LIMIT )); then
     paginate
     exit 0
@@ -184,11 +177,23 @@ platform="$(platform_label)"
 BD=$'\033[1;2m' DIM=$'\033[2m'
 
 if [ -n "${CLIPSO_TO:-}" ]; then
+    if [ "${CLIPSO_STRIP_ANSI:-1}" = "1" ]; then
+        _stripped="$TMP.strip"
+        sed 's/\x1b\[[0-9;]*m//g' "$TMP" > "$_stripped" && mv "$_stripped" "$TMP"
+        BYTES="$(wc -c < "$TMP" | tr -d ' ')"
+        size="$(fmt_size "$BYTES")"
+    fi
     do_copy "$BYTES"
     send_to_remotes
     remotes_rendered="$(remote_targets_rendered)"
     ok "${CYAN}[${platform}]${RESET} > [${remotes_rendered}]  --  ${BD}${src_label}${RESET}  --  ${DIM}${lines} lines - ${size}${RESET}"
 else
+    if [ "${CLIPSO_STRIP_ANSI:-1}" = "1" ]; then
+        _stripped="$TMP.strip"
+        sed 's/\x1b\[[0-9;]*m//g' "$TMP" > "$_stripped" && mv "$_stripped" "$TMP"
+        BYTES="$(wc -c < "$TMP" | tr -d ' ')"
+        size="$(fmt_size "$BYTES")"
+    fi
     do_copy "$BYTES"
     ok "${CYAN}[${platform}]${RESET}  --  ${BD}${src_label}${RESET}  --  ${DIM}${lines} lines - ${size}${RESET}"
 fi
