@@ -22,6 +22,25 @@ _run_log="$_run_log_dir/last.log"
 # INT/TERM/HUP (interruption only): restore the terminal -- avoids being stuck in alt-screen.
 trap 'rm -f "$_run_log" "$_run_script" 2>/dev/null || true' EXIT
 trap 'printf "\033[?1049l\033[?25h"' INT TERM HUP
+# ── repeat guard ─────────────────────────────────────────────────────────────
+# Same command as the previous run (SHA256 of the script body, shebang
+# excluded): do NOT re-execute. Warn, play the special sound, copy the
+# cached payload (~/.cache/clipso/last) to the clipboard.
+_run_cmd="$(tail -n +2 "$_run_script")"
+_run_hash="$(printf '%s' "$_run_cmd" | sha256sum)"
+_run_hash="${_run_hash%% *}"
+_persist_dir="${XDG_CACHE_HOME:-$HOME/.cache}/pty-run"
+mkdir -p "$_persist_dir"
+_prev_hash_file="$_persist_dir/last_cmd.sha256"
+
+if [ -f "$_prev_hash_file" ] && [ "$(cat "$_prev_hash_file")" = "$_run_hash" ]; then
+    _prev_payload="${XDG_CACHE_HOME:-$HOME/.cache}/clipso/last"
+    [ -f "$_prev_payload" ] || die "clipso run: repeat detected but clipboard cache missing"
+    warn "repeat detected: identical command to previous run -- not executing"
+    "$CLIPSO_DIR/clipso.sh" --repeat "$_prev_payload"
+    exit 0
+fi
+
 
 _run_shell="$(command -v bash || echo /bin/sh)"
 _run_inner="$_run_shell $_run_script"
@@ -44,13 +63,14 @@ fi
 # [OK] line are painted on the normal screen and stay visible.
 printf '\033[?1049l\033[?25h'
 
-_clean_run_log "$_run_log"
-_run_cmd="$(tail -n +2 "$_run_script")"
 _run_tmp="$(mktemp "${TMPDIR:-/tmp}/clipso-run-prepend.XXXXXX")"
 { printf '%s\n' "$_run_cmd" | sed 's/^/$ /'; cat "$_run_log"; } > "$_run_tmp"
 mv "$_run_tmp" "$_run_log"
 
 # Copy whatever the command produced -- normal output or an error message.
 # Runs regardless of the command's exit code; cleanup handled by EXIT trap.
+printf '%s\n' "$_run_hash" > "$_prev_hash_file"
+printf '%s\n' "$_run_cmd" > "$_persist_dir/last_cmd"
+cp "$_run_log" "$_persist_dir/last_output"
 "$CLIPSO_DIR/clipso.sh" "$_run_log"
 exit "$_run_rc"

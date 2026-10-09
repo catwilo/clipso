@@ -80,6 +80,35 @@ _play_confirm() {
     return 0
 }
 
+# _play_special <name> -- play <sounds-dir>/specials/<name>.wav exactly once.
+# Reserved for one-off event sounds; never enters the rotation. Returns 0.
+_play_special() {
+    local name="$1"
+
+    [ "${CLIP_ENV:-}" = "termux" ] || return 0
+
+    local file="$CLIPSO_SOUNDS_DIR/specials/${name}.wav"
+    [ -f "$file" ] || {
+        printf '[WARN] play-confirm: missing special sound: %s\n' "$file" >&2
+        return 0
+    }
+
+    local player
+    player="$(_clipso_player)" || {
+        printf '[WARN] play-confirm: no audio player (paplay/play/aplay/mpv)\n' >&2
+        return 0
+    }
+
+    case "$player" in
+        paplay) setsid "$player" "$file" >/dev/null 2>&1 & ;;
+        play)   setsid "$player" -q "$file" >/dev/null 2>&1 & ;;
+        aplay)  setsid "$player" -q "$file" >/dev/null 2>&1 & ;;
+        mpv)    setsid "$player" --no-video --really-quiet "$file" >/dev/null 2>&1 & ;;
+    esac
+    disown 2>/dev/null || true
+    return 0
+}
+
 if [ "${BASH_SOURCE[0]:-$0}" = "$0" ]; then
     _play_confirm
 fi

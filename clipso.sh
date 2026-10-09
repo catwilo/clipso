@@ -26,6 +26,13 @@ source "$CLIPSO_DIR/lib/paginate.sh"
 source "$CLIPSO_DIR/play-confirm.sh"
 
 # ── subcommands ──────────────────────────────────────────────────────────────
+# ── repeat mode flag (used by pty_run.sh when a command repeats) ─────────────
+CLIPSO_REPEAT_MODE=0
+if [ "${1:-}" = "--repeat" ]; then
+    CLIPSO_REPEAT_MODE=1
+    shift
+fi
+
 case "${1:-}" in
     --paste|-P)
         _cache="${XDG_CACHE_HOME:-$HOME/.cache}/clipso/last"
@@ -106,6 +113,7 @@ config (in ~/.config/clipso/config):
 
 flags:
   --toggle-numbers   toggle line numbers on/off  -p <port>  SSH port
+  --repeat           internal: repeat-guard replay (used by pty_run.sh)
 USAGE
             exit 0 ;;
         :) die "option -p requires a port number" ;;
@@ -197,4 +205,8 @@ else
     do_copy "$BYTES"
     ok "${CYAN}[${platform}]${RESET}  --  ${BD}${src_label}${RESET}  --  ${DIM}${lines} lines - ${size}${RESET}"
 fi
-_play_confirm
+if [ "$CLIPSO_REPEAT_MODE" = "1" ]; then
+    _play_special repeated
+else
+    _play_confirm
+fi

@@ -48,9 +48,30 @@ for _abc in $_abc_files; do
         printf '[OK]    %s.wav up to date\n' "$_n" >&2
         continue
     fi
-    if miau-dio play "$_abc" --out "$_wav" >/dev/null 2>&1; then
+    if miau-dio play file "$_abc" --out "$_wav" >/dev/null 2>&1; then
         printf '[OK]    rendered %s.wav\n' "$_n" >&2
     else
         printf '[WARN]  failed to render %s.wav from %s\n' "$_n" "$_abc" >&2
     fi
 done
+
+# Specials: sounds/specials/*.abc -> <out>/specials/<name>.wav
+# Rendered separately from the rotation; play-confirm.sh plays them by
+# name, never as part of the sequence.
+_abc_specials=$(ls "$SRC_DIR"/specials/*.abc 2>/dev/null | sort -V) || true
+if [ -n "$_abc_specials" ]; then
+    mkdir -p "$OUT_DIR/specials"
+    for _abc in $_abc_specials; do
+        _name=$(basename "$_abc" .abc)
+        _wav="$OUT_DIR/specials/$_name.wav"
+        if [ "$FORCE" -eq 0 ] && [ -f "$_wav" ] && [ "$_wav" -nt "$_abc" ]; then
+            printf '[OK]    specials/%s.wav up to date\n' "$_name" >&2
+            continue
+        fi
+        if miau-dio play file "$_abc" --out "$_wav" >/dev/null 2>&1; then
+            printf '[OK]    rendered specials/%s.wav\n' "$_name" >&2
+        else
+            printf '[WARN]  failed to render specials/%s.wav from %s\n' "$_name" "$_abc" >&2
+        fi
+    done
+fi

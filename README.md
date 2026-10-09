@@ -40,3 +40,16 @@ Headless servers use OSC52 only.
 - `TMUX` / `STY` — detected automatically for OSC52 passthrough.
 - `CLIP_FORWARD_SOCK` — override the pbcopy-forward socket path
   (default: `~/.local/share/noemap/clip.sock`).
+
+## Repeat guard
+
+    clipso run <script>
+
+Wraps the shell so its output lands in the clipboard. If the script
+body is identical to the previous run (SHA256 match), the command is
+NOT re-executed: a warning is printed, a dedicated repeat sound plays,
+and the cached payload from the previous run is copied to the clipboard
+again. State lives in `~/.cache/pty-run/`: `last_cmd` (last command),
+`last_cmd.sha256` (its hash), `last_output` (last output). The special
+sound is `~/.config/clipso/sounds/specials/repeated.wav`, rendered from
+`sounds/specials/repeated.abc` by `sounds/generate.sh`.
