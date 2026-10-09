@@ -66,7 +66,7 @@ _run_inner="$_run_shell $_run_script"
 
 _clean_run_log() {
     sed -i '1{/^Script started/d}; ${/^Script done/d}; s/\r//g' "$1"
-    strip_control "$1"
+    strip_display "$1"   # keep SGR (color); noise is stripped separately
 }
 
 printf '\033[?1049h\033[2J\033[H'
@@ -88,7 +88,7 @@ printf '\033[?1049l\033[?25h'
 # because the first strip can run before the last reply reaches the file.
 sleep 0.1
 _clean_run_log "$_run_log"
-strip_control "$_run_log"
+strip_display "$_run_log"
 _run_lines="$(wc -l < "$_run_log" | tr -d ' ')"
 _run_size="$(fmt_size "$(wc -c < "$_run_log" | tr -d ' ')")"
 _dim=$'\033[2m'

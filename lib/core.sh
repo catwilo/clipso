@@ -40,12 +40,17 @@ fmt_size() {
     fi
 }
 
-# strip_control <file> -- remove terminal control sequences in place.
-# Covers CSI cursor/erase, CSI SGR colors, OSC replies (BEL or ST
-# terminated) and CPR cursor-position reports. The last three are the
-# bytes a terminal sends back when probed via the pty (e.g. background
-# color query, cursor position); without this they leak into the
-# clipboard payload as "weird characters".
+# strip_display <file> -- strip terminal-noise sequences while PRESERVING
+# SGR (color) escape codes. Used before painting the payload to the screen,
+# so the display stays clean of pty leftovers but keeps its colors.
+strip_display() {
+    sed -i 's/\x1b\[[0-9;]*[GKHFABCDJsu]//g; s/\x1b\[?[0-9;]*[hl]//g; s/\x1b\][^\x07\x1b]*\x07//g; s/\x1b\][^\x07\x1b]*\x1b\\//g; s/\x1b\[[0-9;]*R//g' "$1"
+}
+
+# strip_control <file> -- strip terminal-noise sequences AND SGR color
+# codes. Used on the payload that reaches the clipboard: no ANSI, no OSC,
+# no CPR, nothing weird for the pasted text.
 strip_control() {
-    sed -i 's/\x1b\[[0-9;]*[GKHFABCDJsu]//g; s/\x1b\[?[0-9;]*[hl]//g; s/\x1b\][^\x07\x1b]*\x07//g; s/\x1b\][^\x07\x1b]*\x1b\\//g; s/\x1b\[[0-9;]*R//g; s/\x1b\[[0-9;]*m//g' "$1"
+    strip_display "$1"
+    sed -i 's/\x1b\[[0-9;]*m//g' "$1"
 }
