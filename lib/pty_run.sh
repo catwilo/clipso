@@ -33,18 +33,24 @@ _run_hash="${_run_hash%% *}"
 _persist_dir="${XDG_CACHE_HOME:-$HOME/.cache}/pty-run"
 mkdir -p "$_persist_dir"
 _prev_hash_file="$_persist_dir/last_cmd.sha256"
-
 if [ -f "$_prev_hash_file" ] && [ "$(cat "$_prev_hash_file")" = "$_run_hash" ]; then
-    _prev_payload="${XDG_CACHE_HOME:-$HOME/.cache}/clipso/last"
-    [ -f "$_prev_payload" ] || die "clipso run: repeat detected but clipboard cache missing"
-    warn "repeat detected: identical command to previous run -- not executing"
-    "$CLIPSO_DIR/clipso.sh" --repeat "$_prev_payload"
+    # Identical command to the previous run. Copy the previous payload
+    # (hash + output) to the clipboard NOW -- so "no" leaves the clipboard
+    # with what the user already had. If the user answers "yes", the run
+    # proceeds and the new output overwrites the clipboard at the end.
+    "$CLIPSO_DIR/clipso.sh" send-payload "$_run_hash" || die "clipso run: failed to copy previous payload to clipboard"
 
-    # Interactive re-execute prompt (default: no). Only offered when stdin is
-    # a TTY, so scripts/cron/pipes keep the old behavior -- replay and exit.
     if [ -t 0 ]; then
-        printf 're-execute? [y/N] ' >&2
-        read -r _ans || _ans=""
+        # Ctrl+C at the prompt cancels the run (exit 130); Ctrl+D (EOF) is the
+        # default answer ("no") and exits cleanly. Trap restored afterwards.
+        trap 'printf "\n" >/dev/tty; exit 130' INT
+        printf '\n  %brepeat detected%b  identical to previous run\n' "$YELLOW" "$RESET" >/dev/tty
+        printf '  re-execute? %b[y/N]%b ' "$CYAN" "$RESET" >/dev/tty
+        if ! read -r _ans; then
+            printf '\n' >/dev/tty
+            exit 0
+        fi
+        trap 'printf "\033[?1049l\033[?25h"' INT TERM HUP
         case "$_ans" in
             y|Y) : ;;
             *)   exit 0 ;;

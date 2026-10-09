@@ -49,6 +49,18 @@ case "${1:-}" in
         [ -f "$_out_file" ] && cat "$_out_file"
         exit 0 ;;
 
+    send-payload)
+        [ -n "${2:-}" ] || die "clipso send-payload requires a hash"
+        _sp_src="${XDG_CACHE_HOME:-$HOME/.cache}/pty-run/history/$2.out"
+        [ -f "$_sp_src" ] || die "no recorded payload for hash: $2"
+        TMP="$(mktemp "${TMPDIR:-/tmp}/clipso.XXXXXX")"
+        trap 'rm -f "$TMP"' EXIT INT TERM
+        cp "$_sp_src" "$TMP"
+        CLIP_ENV="$(detect_env)"
+        do_copy "$(wc -c < "$TMP" | tr -d ' ')"
+        _play_special repeated
+        exit 0 ;;
+
     target)
         sub="${2:-status}"
         case "$sub" in
@@ -76,6 +88,23 @@ case "${1:-}" in
         printf '\033[?1049l\033[?25h'
         stty sane 2>/dev/null || true
         command -v tput >/dev/null 2>&1 && tput rmcup 2>/dev/null || true
+        # Disarm the repeat guard: drop last-run state (hash, cmd, output).
+        # history/<hash>.{cmd,out} is preserved -- it is the record, not state.
+        _state_dir="${XDG_CACHE_HOME:-$HOME/.cache}/pty-run"
+        rm -f "$_state_dir/last_cmd.sha256" "$_state_dir/last_cmd" "$_state_dir/last_output"
+        # Sweep orphan temp files from interrupted runs. Only files older than
+        # 1 hour are touched -- a live clipso run in a parent shell keeps its
+        # own log for seconds, and must never be deleted from under it.
+        _swept=0
+        for _f in $(find "${TMPDIR:-/tmp}" -maxdepth 1 -mmin +5 \
+                     \( -name 'clipso.??????' \
+                     -o -name 'clipso-err.??????' \
+                     -o -name 'clipso-run-log.??????' \
+                     -o -name 'clipso-run-prepend.??????' \
+                     -o -name 'clipso-cmd.??????' \) 2>/dev/null); do
+            rm -f "$_f" && _swept=$((_swept + 1))
+        done
+        ok "reset: guard disarmed, ${_swept} orphan temp file(s) swept (history/ preserved)"
         exit 0 ;;
 
     run)  shift
