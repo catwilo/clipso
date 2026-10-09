@@ -23,16 +23,17 @@ setup() { setup_env; }
 
 @test "clipso history <N> limits the number of lines" {
     mkdir -p "$HIST"
+    # Distinct mtimes with an explicit `touch -d` (a `sleep 0.02` is not
+    # enough on filesystems with 1-second mtime granularity, which would
+    # make the ls -t ordering non-deterministic).
     for i in 1 2 3 4 5; do
         printf 'echo %s\n' "$i" > "$HIST/h${i}.cmd"
         printf '%s\n' "$i" > "$HIST/h${i}.out"
-        sleep 0.02
+        touch -d "2026-01-0${i} 12:00:00" "$HIST/h${i}.cmd" "$HIST/h${i}.out"
     done
     run bash "$CLIPSO" history 2
     [ "$status" -eq 0 ]
     ! [[ "$output" == *'no recorded runs'* ]]
-    # Each entry line ends with "$ <cmd>". Count is robust to the ANSI
-    # codes that history_list paints around date and hash.
     count=$(printf '%s\n' "$output" | grep -c '  \$ ')
     [ "$count" -eq 2 ]
 }
@@ -42,7 +43,7 @@ setup() { setup_env; }
     for i in 1 2 3 4 5; do
         printf 'echo %s\n' "$i" > "$HIST/h${i}.cmd"
         printf '%s\n' "$i" > "$HIST/h${i}.out"
-        sleep 0.02
+        touch -d "2026-01-0${i} 12:00:00" "$HIST/h${i}.cmd" "$HIST/h${i}.out"
     done
     # Source the library and purge with max=2.
     run bash -c ". '$REPO/lib/core.sh'; . '$REPO/lib/history.sh'; CLIPSO_HISTORY_MAX=2; XDG_CACHE_HOME='$XDG_CACHE_HOME' history_purge; ls '$HIST' | wc -l | tr -d ' '"
