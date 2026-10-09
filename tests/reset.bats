@@ -44,6 +44,28 @@ setup() { setup_env; }
     [ -f "$fresh" ]
 }
 
+@test "reset sweeps clipso-priv, clipso-rc, clipso-kb orphans" {
+    for base in clipso-priv clipso-rc clipso-kb; do
+        f="$TMPDIR/${base}.OLD001"
+        touch "$f"
+        touch -d '10 minutes ago' "$f" 2>/dev/null || touch -t 202001010000 "$f"
+    done
+    run bash "$CLIPSO" reset
+    [ "$status" -eq 0 ]
+    [ ! -f "$TMPDIR/clipso-priv.OLD001" ]
+    [ ! -f "$TMPDIR/clipso-rc.OLD001" ]
+    [ ! -f "$TMPDIR/clipso-kb.OLD001" ]
+}
+
+@test "reset clears the play-confirm rotation counter (.last)" {
+    sounds="$XDG_CONFIG_HOME/clipso/sounds"
+    mkdir -p "$sounds"
+    printf '2\n' > "$sounds/.last"
+    run bash "$CLIPSO" reset
+    [ "$status" -eq 0 ]
+    [ ! -f "$sounds/.last" ]
+}
+
 @test "reset only matches clipso mktemp patterns" {
     unrelated="$TMPDIR/some-other-tool.ABCDEF"
     touch "$unrelated"

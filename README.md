@@ -87,6 +87,36 @@ travels in the clipboard; the command body stays on disk.
 Disarms the guard (drops last-run state), sweeps orphan temp files older
 than 5 minutes from `$TMPDIR`, and preserves `history/`.
 
+## Confirmation sounds
+
+`play-confirm` plays the confirmation WAVs. Installed as a command
+(symlinked into `PATH`), it works with no arguments or with an explicit
+selector:
+
+    play-confirm             play the next WAV in the rotation (1, 2, 3, ...)
+    play-confirm 2           play 2.wav directly, bypassing the rotation
+    play-confirm repeated    play specials/repeated.wav
+
+The rotation advances a counter stored in `.last` next to the WAVs. `N`
+and `name` invocations leave the counter untouched. Unknown selectors
+warn and exit 0 without playing anything. On non-Termux hosts it is a
+silent no-op. Every call runs in the background and never blocks the
+shell.
+
+Resolution order for an argument `X`:
+
+    1. `X` matches `specials/...`  -> play specials/<X-without-prefix>
+    2. `X` exists as `X.wav`       -> play it (numeric path)
+    3. `X` exists as `specials/X.wav` -> play it (name path)
+    4. otherwise                   -> warn, exit 0, play nothing
+
+So a special named `2` is reachable as `play-confirm specials/2`, and a
+numerically-named selector without a matching WAV falls back to the
+specials directory instead of erroring.
+
+`CLIP_ENV` is autodetected when the command is invoked directly; the
+symlink is resolved with `readlink -f` before locating the modules.
+
 ## Tests
 
 The regression suite runs on BATS-core and lives in `tests/`:

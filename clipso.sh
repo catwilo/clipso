@@ -74,6 +74,7 @@ case "${1:-}" in
         # history/<hash>.{cmd,out} is preserved -- it is the record, not state.
         _state_dir="${XDG_CACHE_HOME:-$HOME/.cache}/pty-run"
         rm -f "$_state_dir/last_cmd.sha256" "$_state_dir/last_cmd" "$_state_dir/last_output"
+        rm -f "${XDG_CONFIG_HOME:-$HOME/.config}/clipso/sounds/.last"
         # Sweep orphan temp files from interrupted runs. Only files older than
         # 1 hour are touched -- a live clipso run in a parent shell keeps its
         # own log for seconds, and must never be deleted from under it.
@@ -83,7 +84,10 @@ case "${1:-}" in
                      -o -name 'clipso-err.??????' \
                      -o -name 'clipso-run-log.??????' \
                      -o -name 'clipso-run-prepend.??????' \
-                     -o -name 'clipso-cmd.??????' \) 2>/dev/null); do
+                     -o -name 'clipso-cmd.??????' \
+                     -o -name 'clipso-priv.??????' \
+                     -o -name 'clipso-rc.??????' \
+                     -o -name 'clipso-kb.??????' \) 2>/dev/null); do
             rm -f "$_f" && _swept=$((_swept + 1))
         done
         ok "reset: guard disarmed, ${_swept} orphan temp file(s) swept (history/ preserved)"

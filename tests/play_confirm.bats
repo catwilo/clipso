@@ -80,6 +80,33 @@ _wait_played() {
     [ "$(cat "$SOUNDS/.last")" = "2" ]
 }
 
+@test "numeric arg not present as N.wav falls back to specials/<N>" {
+    : > "$SOUNDS/specials/7.wav"
+    rm -f "$SOUNDS/7.wav"
+    run bash "$PC" 7 </dev/null
+    [ "$status" -eq 0 ]
+    _wait_played
+    [[ "$(tail -n1 "$PLAYED_FILE")" == */specials/7.wav ]]
+}
+
+@test "specials/<name> forces the name route even for numeric names" {
+    : > "$SOUNDS/2.wav"
+    : > "$SOUNDS/specials/2.wav"
+    run bash "$PC" specials/2 </dev/null
+    [ "$status" -eq 0 ]
+    _wait_played
+    played="$(tail -n1 "$PLAYED_FILE")"
+    [ "$played" = "$SOUNDS/specials/2.wav" ]
+    [ "$played" != "$SOUNDS/2.wav" ]
+}
+
+@test "numeric arg with no matching WAV and no special warns, plays nothing" {
+    run bash "$PC" 99 </dev/null
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"no such sound: 99"* ]]
+    [ ! -s "$PLAYED_FILE" ]
+}
+
 @test "unknown name: warns, exits 0, plays nothing" {
     run bash "$PC" nope </dev/null
     [ "$status" -eq 0 ]

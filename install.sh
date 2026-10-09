@@ -85,6 +85,17 @@ _do_verify() {
     [ -L "$found" ] || { warn "clipso is not a symlink -> $found"; return 1; }
     ok "clipso -> $found"
     echo "verify" | clipso - >/dev/null 2>&1 && ok "clipso runs OK" || { warn "clipso run failed"; return 1; }
+
+    local pc pc_target
+    pc="$(command -v play-confirm 2>/dev/null || true)"
+    if [ -z "$pc" ]; then
+        warn "play-confirm not in PATH — run: bash install.sh"
+        return 1
+    fi
+    pc_target="$(readlink -f "$pc" 2>/dev/null || echo "$pc")"
+    [ "$pc_target" = "$PLAY_CONFIRM" ] || { warn "play-confirm -> $pc_target (expected $PLAY_CONFIRM)"; return 1; }
+    [ -L "$pc" ] || { warn "play-confirm is not a symlink -> $pc"; return 1; }
+    ok "play-confirm -> $pc"
 }
 
 if [ "${1:-}" = verify ]; then _do_verify;  exit $?; fi

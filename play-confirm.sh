@@ -117,9 +117,19 @@ if [ "${BASH_SOURCE[0]:-$0}" = "$0" ]; then
         [ -f "$_pc_dir/lib/clipboard.sh" ] && source "$_pc_dir/lib/clipboard.sh"
         CLIP_ENV="$(detect_env 2>/dev/null || echo osc52)"
     fi
-    case "${1:-}" in
-        "")       _play_confirm ;;
-        *[!0-9]*) _play_special "$1" ;;
-        *)        _play_numbered "$1" ;;
+    _pc_arg="${1:-}"
+    case "$_pc_arg" in
+        "")     _play_confirm ;;
+        specials/*) _play_special "${_pc_arg#specials/}" ;;
+        *[!0-9]*)   _play_special "$_pc_arg" ;;
+        *)
+            if [ -f "$CLIPSO_SOUNDS_DIR/${_pc_arg}.wav" ]; then
+                _play_numbered "$_pc_arg"
+            elif [ -f "$CLIPSO_SOUNDS_DIR/specials/${_pc_arg}.wav" ]; then
+                _play_special "$_pc_arg"
+            else
+                printf '[WARN] play-confirm: no such sound: %s\n' "$_pc_arg" >&2
+            fi
+            ;;
     esac
 fi

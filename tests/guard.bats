@@ -52,3 +52,20 @@ setup() { setup_env; }
     h2=$(cat "$STATE/last_cmd.sha256")
     [ "$h1" != "$h2" ]
 }
+@test "answer yes: re-executes and overwrites clipboard with fresh output" {
+    s="$BATS_TEST_TMPDIR/run.sh"
+    write_script "$s" 'echo reexec-marker; date +%s%N'
+    run bash "$PTY_RUN" "$s" </dev/null
+    [ "$status" -eq 0 ]
+    cp1=$(cat "$CLIPBOARD_FILE")
+    [ -n "$cp1" ]
+
+    sleep 1
+    write_script "$s" 'echo reexec-marker; date +%s%N'
+    # Feed 'y' to the guard's prompt under a pty (script(1) allocates one,
+    # since BATS itself runs without a TTY -- [ -t 0 ] would be false).
+    printf 'y\n' | script -q -E never -c "bash $PTY_RUN $s" >/dev/null 2>&1 || true
+    cp2=$(cat "$CLIPBOARD_FILE")
+    [ -n "$cp2" ]
+    [ "$cp1" != "$cp2" ]
+}
