@@ -97,12 +97,13 @@ _link() {
 }
 
 _link "$CLIPSO_SH" "$BINDIR/clipso"
+_link "$PLAY_CONFIRM" "$BINDIR/play-confirm"
 _link "$PLAY_CONFIRM" "$BINDIR/play-confirm.sh"
 
 # Clear stale copies in ~/.local/bin when BINDIR is elsewhere; a copy there
 # would shadow the link when ~/.local/bin precedes $PREFIX/bin in PATH.
 if [ "$BINDIR" != "$HOME/.local/bin" ] && [ -d "$HOME/.local/bin" ]; then
-    for _n in clipso play-confirm.sh; do
+    for _n in clipso play-confirm play-confirm.sh; do
         if [ -e "$HOME/.local/bin/$_n" ] && [ ! -L "$HOME/.local/bin/$_n" ]; then
             rm -f "$HOME/.local/bin/$_n"
             ok "removed stale copy $HOME/.local/bin/$_n"

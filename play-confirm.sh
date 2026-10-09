@@ -14,8 +14,11 @@
 # a successful copy into a failure (clipso runs under `set -e`).
 #
 # Usage:
-#   source play-confirm.sh   # defines _play_confirm; caller invokes it
-#   ./play-confirm.sh        # runs _play_confirm now (CLIP_ENV must be set)
+#   source play-confirm.sh     # defines _play_confirm, _play_special, _play_numbered
+#   play-confirm.sh            # rotation (same as _play_confirm)
+#   play-confirm.sh <N>        # play <N>.wav directly, bypassing the rotation
+#   play-confirm.sh <name>     # play specials/<name>.wav
+# When invoked directly, CLIP_ENV is auto-detected if the caller did not set it.
 
 CLIPSO_SOUNDS_DIR="${CLIPSO_SOUNDS_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/clipso/sounds}"
 
@@ -27,8 +30,31 @@ _clipso_player() {
     return 1
 }
 
-# _play_confirm -- play the next sound in the sequence, wrapping at the end.
-# Always returns 0; audio problems are warnings only.
+# _play_file <path> -- play a WAV in the background; always returns 0.
+# Never blocks the shell, never fails the caller (clipso runs under set -e).
+_play_file() {
+    local file="$1"
+    [ -f "$file" ] || {
+        printf '[WARN] play-confirm: no such sound: %s\n' "$file" >&2
+        return 0
+    }
+    local player
+    player="$(_clipso_player)" || {
+        printf '[WARN] play-confirm: no audio player (paplay/play/aplay/mpv)\n' >&2
+        return 0
+    }
+    case "$player" in
+        paplay) setsid "$player" "$file" >/dev/null 2>&1 & ;;
+        play)   setsid "$player" -q "$file" >/dev/null 2>&1 & ;;
+        aplay)  setsid "$player" -q "$file" >/dev/null 2>&1 & ;;
+        mpv)    setsid "$player" --no-video --really-quiet "$file" >/dev/null 2>&1 & ;;
+    esac
+    disown 2>/dev/null || true
+    return 0
+}
+
+# _play_confirm -- play the next sound in the rotation, wrapping at the end.
+# Advances the counter stored in .last.
 _play_confirm() {
     [ "${CLIP_ENV:-}" = "termux" ] || return 0
 
@@ -39,7 +65,7 @@ _play_confirm() {
 
     _pc_files=$(ls "$CLIPSO_SOUNDS_DIR"/[0-9]*.wav 2>/dev/null | sort -V)
     [ -n "$_pc_files" ] || {
-        printf '[WARN] play-confirm: no sounds in %s (run: clipso sounds)\n' "$CLIPSO_SOUNDS_DIR" >&2
+        printf '[WARN] play-confirm: no sounds in %s (run: sounds/generate.sh)\n' "$CLIPSO_SOUNDS_DIR" >&2
         return 0
     }
 
@@ -60,55 +86,40 @@ _play_confirm() {
         _pc_next_n=$(basename "$_pc_next" .wav)
     fi
 
-    _pc_player=$(_clipso_player) || {
-        printf '[WARN] play-confirm: no audio player (paplay/play/aplay/mpv)\n' >&2
-        return 0
-    }
-
-    # Play in the background: the confirmation sound must never block the
-    # shell -- the user keeps typing while it plays. setsid detaches it from
-    # the controlling terminal; disown keeps it out of the shell job table.
-    case "$_pc_player" in
-        paplay) setsid "$_pc_player" "$_pc_next" >/dev/null 2>&1 & ;;
-        play)   setsid "$_pc_player" -q "$_pc_next" >/dev/null 2>&1 & ;;
-        aplay)  setsid "$_pc_player" -q "$_pc_next" >/dev/null 2>&1 & ;;
-        mpv)    setsid "$_pc_player" --no-video --really-quiet "$_pc_next" >/dev/null 2>&1 & ;;
-    esac
-    disown 2>/dev/null || true
-
+    _play_file "$_pc_next"
     printf '%s\n' "$_pc_next_n" > "$_pc_last_file"
     return 0
 }
 
-# _play_special <name> -- play <sounds-dir>/specials/<name>.wav exactly once.
-# Reserved for one-off event sounds; never enters the rotation. Returns 0.
-_play_special() {
-    local name="$1"
-
+# _play_numbered <N> -- play <sounds-dir>/<N>.wav directly, bypassing rotation.
+_play_numbered() {
     [ "${CLIP_ENV:-}" = "termux" ] || return 0
-
-    local file="$CLIPSO_SOUNDS_DIR/specials/${name}.wav"
-    [ -f "$file" ] || {
-        printf '[WARN] play-confirm: missing special sound: %s\n' "$file" >&2
-        return 0
-    }
-
-    local player
-    player="$(_clipso_player)" || {
-        printf '[WARN] play-confirm: no audio player (paplay/play/aplay/mpv)\n' >&2
-        return 0
-    }
-
-    case "$player" in
-        paplay) setsid "$player" "$file" >/dev/null 2>&1 & ;;
-        play)   setsid "$player" -q "$file" >/dev/null 2>&1 & ;;
-        aplay)  setsid "$player" -q "$file" >/dev/null 2>&1 & ;;
-        mpv)    setsid "$player" --no-video --really-quiet "$file" >/dev/null 2>&1 & ;;
-    esac
-    disown 2>/dev/null || true
-    return 0
+    _play_file "$CLIPSO_SOUNDS_DIR/${1}.wav"
 }
 
+# _play_special <name> -- play <sounds-dir>/specials/<name>.wav, no rotation.
+_play_special() {
+    [ "${CLIP_ENV:-}" = "termux" ] || return 0
+    _play_file "$CLIPSO_SOUNDS_DIR/specials/${1}.wav"
+}
+
+# Dispatcher when invoked directly (not sourced):
+#   play-confirm.sh          rotation (same as _play_confirm)
+#   play-confirm.sh <N>      numbered WAV (bypass rotation)
+#   play-confirm.sh <name>   specials/<name>.wav
 if [ "${BASH_SOURCE[0]:-$0}" = "$0" ]; then
-    _play_confirm
+    if [ -z "${CLIP_ENV:-}" ]; then
+        # Resolve the symlink: play-confirm is installed as ~/.local/bin/play-confirm,
+        # so dirname(BASH_SOURCE) would point at the bin dir, not the repo.
+        _pc_self="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || printf '%s' "${BASH_SOURCE[0]}")"
+        _pc_dir="$(cd "$(dirname "$_pc_self")" && pwd)"
+        [ -f "$_pc_dir/lib/core.sh" ]      && source "$_pc_dir/lib/core.sh"
+        [ -f "$_pc_dir/lib/clipboard.sh" ] && source "$_pc_dir/lib/clipboard.sh"
+        CLIP_ENV="$(detect_env 2>/dev/null || echo osc52)"
+    fi
+    case "${1:-}" in
+        "")       _play_confirm ;;
+        *[!0-9]*) _play_special "$1" ;;
+        *)        _play_numbered "$1" ;;
+    esac
 fi
