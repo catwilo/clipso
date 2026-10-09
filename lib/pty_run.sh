@@ -15,8 +15,9 @@ _run_script="$1"
 
 _run_log_dir="${XDG_CACHE_HOME:-$HOME/.cache}/pty-run"
 mkdir -p "$_run_log_dir"
-_run_log="$_run_log_dir/last.log"
-[ ! -f "$_run_log" ] || die "clipso run: stale pty log exists -- remove manually: $_run_log"
+# Transient log for THIS run: never the shared last.log path, so a nested
+# clipso run cannot delete the file a parent invocation is still reading.
+_run_log="$(mktemp "${TMPDIR:-/tmp}/clipso-run-log.XXXXXX")"
 
 # EXIT (always): drop temp files so a subsequent run is never blocked.
 # INT/TERM/HUP (interruption only): restore the terminal -- avoids being stuck in alt-screen.
@@ -38,7 +39,19 @@ if [ -f "$_prev_hash_file" ] && [ "$(cat "$_prev_hash_file")" = "$_run_hash" ]; 
     [ -f "$_prev_payload" ] || die "clipso run: repeat detected but clipboard cache missing"
     warn "repeat detected: identical command to previous run -- not executing"
     "$CLIPSO_DIR/clipso.sh" --repeat "$_prev_payload"
-    exit 0
+
+    # Interactive re-execute prompt (default: no). Only offered when stdin is
+    # a TTY, so scripts/cron/pipes keep the old behavior -- replay and exit.
+    if [ -t 0 ]; then
+        printf 're-execute? [y/N] ' >&2
+        read -r _ans || _ans=""
+        case "$_ans" in
+            y|Y) : ;;
+            *)   exit 0 ;;
+        esac
+    else
+        exit 0
+    fi
 fi
 
 

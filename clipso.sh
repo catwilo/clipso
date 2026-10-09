@@ -66,7 +66,6 @@ case "${1:-}" in
         printf '\033[?1049l\033[?25h'
         stty sane 2>/dev/null || true
         command -v tput >/dev/null 2>&1 && tput rmcup 2>/dev/null || true
-        rm -f "${XDG_CACHE_HOME:-$HOME/.cache}/pty-run/last.log"
         exit 0 ;;
 
     run)  shift
