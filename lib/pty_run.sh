@@ -81,11 +81,15 @@ fi
 # Leave alt-screen BEFORE rendering, so the normalized output, line numbers and
 # [OK] line are painted on the normal screen and stay visible.
 printf '\033[?1049l\033[?25h'
-
+# _run_cmd already extracted above (repeat guard)
+_clean_run_log "$_run_log"
+_run_lines="$(wc -l < "$_run_log" | tr -d ' ')"
+_run_size="$(fmt_size "$(wc -c < "$_run_log" | tr -d ' ')")"
+_dim=$'\033[2m'
+_header="$(printf '%b[clipso]%b  %bhash=%b%s%b  %blines=%b%s%b  %bsize=%b%s%b' "$CYAN" "$RESET" "$_dim" "$CYAN" "$_run_hash" "$RESET" "$_dim" "$CYAN" "$_run_lines" "$RESET" "$_dim" "$CYAN" "$_run_size" "$RESET")"
 _run_tmp="$(mktemp "${TMPDIR:-/tmp}/clipso-run-prepend.XXXXXX")"
-{ printf '%s\n' "$_run_hash"; cat "$_run_log"; } > "$_run_tmp"
+{ printf '%s\n' "$_header"; cat "$_run_log"; } > "$_run_tmp"
 mv "$_run_tmp" "$_run_log"
-
 # Copy whatever the command produced -- normal output or an error message.
 # Runs regardless of the command's exit code; cleanup handled by EXIT trap.
 # Persist raw cmd + normalized output under the hash for `clipso show <hash>`.
