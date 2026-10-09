@@ -177,7 +177,6 @@ _wire_keybinding() {
         printf '  BUFFER="clipso run $_tmp"\n'
         printf '  zle accept-line\n'
         printf '}\n'
-        printf '}\n'
         printf '_clipso_zshaddhistory() {\n'
         printf '  [[ "$1" == "clipso run /"* ]] && return 1\n'
         printf '  return 0\n'

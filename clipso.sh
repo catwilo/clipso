@@ -106,6 +106,18 @@ case "${1:-}" in
     --help) set -- -h "${@:2}" ;;
 esac
 
+# ── --to (one-shot remote) ──────────────────────────────────────────────────
+# MUST run before `getopts`: getopts sees the leading `--` as end-of-options,
+# consumes it, and leaves `to` as a positional arg -- the --to branch would
+# never fire. Parsing it here keeps the flag usable.
+CLIPSO_TO_EXPLICIT=0
+if [ "${1:-}" = "--to" ]; then
+    [ -n "${2:-}" ] || die "--to requires an alias"
+    CLIPSO_TO="$2"
+    CLIPSO_TO_EXPLICIT=1
+    shift 2
+fi
+
 # ── flags ────────────────────────────────────────────────────────────────────
 SSH_PORT=22
 while getopts ":p:h" opt; do
@@ -146,15 +158,6 @@ USAGE
     esac
 done
 shift $((OPTIND - 1))
-
-# ── --to (one-shot remote) ──────────────────────────────────────────────────
-CLIPSO_TO_EXPLICIT=0
-if [ "${1:-}" = "--to" ]; then
-    [ -n "${2:-}" ] || die "--to requires an alias"
-    CLIPSO_TO="$2"
-    CLIPSO_TO_EXPLICIT=1
-    shift 2
-fi
 
 TARGET="${1:-}"
 

@@ -42,3 +42,29 @@ setup() { setup_env; }
     [ "$status" -ne 0 ]
     [[ "$output" == *'file not found'* ]]
 }
+
+@test "clipso --paste after a copy returns the cached payload" {
+    src="$BATS_TEST_TMPDIR/one.txt"
+    printf 'cached-line\n' > "$src"
+    run bash "$CLIPSO" "$src" </dev/null
+    [ "$status" -eq 0 ]
+    run bash "$CLIPSO" --paste
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'cached-line'* ]]
+}
+
+@test "clipso --to with missing alias arg dies with actionable message" {
+    run bash "$CLIPSO" --to
+    [ "$status" -ne 0 ]
+    [[ "$output" == *'--to requires an alias'* ]]
+}
+
+@test "paginate: payload over PAGER_LIMIT enters the pager path" {
+    # A single long line just past PAGER_LIMIT (900 KB). Few lines so the
+    # test itself does not flood the terminal; the paginate path is taken
+    # before privacy_display, so no display output is produced at all.
+    big="$BATS_TEST_TMPDIR/big.txt"
+    awk 'BEGIN { printf "%*s\n", 950000, "" }' > "$big"
+    run bash "$CLIPSO" "$big" </dev/null
+    [ "$status" -eq 0 ]
+}

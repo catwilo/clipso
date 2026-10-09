@@ -120,3 +120,12 @@ _wait_played() {
     [ "$status" -eq 0 ]
     [ ! -s "$PLAYED_FILE" ]
 }
+
+@test "rotation wraps: after last .wav the next is 1.wav" {
+    printf '3\n' > "$SOUNDS/.last"
+    run bash "$PC" </dev/null
+    [ "$status" -eq 0 ]
+    _wait_played
+    [ "$(tail -n1 "$PLAYED_FILE")" = "$SOUNDS/1.wav" ]
+    [ "$(cat "$SOUNDS/.last")" = "1" ]
+}

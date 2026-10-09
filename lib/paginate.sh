@@ -3,6 +3,14 @@
 # Depends on do_copy (clipboard.sh) and TMP/BYTES/PAGER_LIMIT globals.
 
 paginate() {
+    # Non-interactive context (stdin is not a TTY): the per-page prompt would
+    # hang forever on `read < /dev/tty`. Fall back to a single-shot copy --
+    # chunking only exists to help an interactive reader.
+    if [ ! -t 0 ]; then
+        do_copy "$(wc -c < "$TMP" | tr -d ' ')"
+        return 0
+    fi
+
     local chunk_dir
     chunk_dir="$(mktemp -d "${TMPDIR:-/tmp}/clipso-pages.XXXXXX")"
     trap 'rm -rf "$chunk_dir"; rm -f "$TMP" "$TMPERR"' EXIT INT TERM
