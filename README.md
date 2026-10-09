@@ -117,6 +117,24 @@ specials directory instead of erroring.
 `CLIP_ENV` is autodetected when the command is invoked directly; the
 symlink is resolved with `readlink -f` before locating the modules.
 
+### Control-sequence stripping
+
+The pty that carries a `clipso run` payload emits two kinds of control
+bytes: SGR colors (that we want to keep for display) and terminal replies
+(OSC background color, CPR cursor reports) that the shell's terminal
+returns when probed. The two are handled separately:
+
+- `strip_display <file>` -- removes cursor/erase CSI, OSC replies and CPR
+  reports, but **keeps SGR colors**. Used on the log before painting the
+  numbered payload to the screen, so the display stays readable.
+- `strip_control <file>` -- calls `strip_display` and then removes SGR too.
+  Used on the payload that reaches the clipboard (`history/<hash>.out`,
+  `last_output`), so a paste has no ANSI bytes at all.
+
+Any new strip of terminal noise must decide which of these two callers it
+serves. Do not merge them -- a single function would either leave colors
+in the clipboard or kill them on the screen.
+
 ## Tests
 
 The regression suite runs on BATS-core and lives in `tests/`:
