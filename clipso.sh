@@ -39,6 +39,16 @@ case "${1:-}" in
         [ -f "$_cache" ] || die "no clipboard cache found -- nothing copied yet via clipso"
         cat "$_cache"; exit 0 ;;
 
+    show)
+        [ -n "${2:-}" ] || die "clipso show requires a hash"
+        _hist_dir="${XDG_CACHE_HOME:-$HOME/.cache}/pty-run/history"
+        _cmd_file="$_hist_dir/$2.cmd"
+        _out_file="$_hist_dir/$2.out"
+        [ -f "$_cmd_file" ] || die "no recorded command for hash: $2"
+        printf '$ %s\n' "$(cat "$_cmd_file")"
+        [ -f "$_out_file" ] && cat "$_out_file"
+        exit 0 ;;
+
     target)
         sub="${2:-status}"
         case "$sub" in
@@ -97,6 +107,7 @@ usage:
   clipso -                           read stdin
   echo hello | clipso               read piped stdin
   clipso --paste / -P               paste from mesh clipboard cache
+  clipso show <hash>                show command + output for a recorded hash
   clipso --to <alias>               one-shot send to remote clipboard
 
 remote target management:

@@ -77,11 +77,15 @@ fi
 printf '\033[?1049l\033[?25h'
 
 _run_tmp="$(mktemp "${TMPDIR:-/tmp}/clipso-run-prepend.XXXXXX")"
-{ printf '%s\n' "$_run_cmd" | sed 's/^/$ /'; cat "$_run_log"; } > "$_run_tmp"
+{ printf '%s\n' "$_run_hash"; cat "$_run_log"; } > "$_run_tmp"
 mv "$_run_tmp" "$_run_log"
 
 # Copy whatever the command produced -- normal output or an error message.
 # Runs regardless of the command's exit code; cleanup handled by EXIT trap.
+# Persist raw cmd + normalized output under the hash for `clipso show <hash>`.
+mkdir -p "$_persist_dir/history"
+printf '%s\n' "$_run_cmd" > "$_persist_dir/history/${_run_hash}.cmd"
+cp "$_run_log" "$_persist_dir/history/${_run_hash}.out"
 printf '%s\n' "$_run_hash" > "$_prev_hash_file"
 printf '%s\n' "$_run_cmd" > "$_persist_dir/last_cmd"
 cp "$_run_log" "$_persist_dir/last_output"

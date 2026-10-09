@@ -45,11 +45,21 @@ Headless servers use OSC52 only.
 
     clipso run <script>
 
-Wraps the shell so its output lands in the clipboard. If the script
-body is identical to the previous run (SHA256 match), the command is
-NOT re-executed: a warning is printed, a dedicated repeat sound plays,
-and the cached payload from the previous run is copied to the clipboard
-again. State lives in `~/.cache/pty-run/`: `last_cmd` (last command),
-`last_cmd.sha256` (its hash), `last_output` (last output). The special
-sound is `~/.config/clipso/sounds/specials/repeated.wav`, rendered from
+Wraps the shell so its output lands in the clipboard. Each run is
+identified by a SHA256 of its body (shebang excluded); the hash is
+prepended to the clipboard payload. If the script body is identical to
+the previous run, the command is NOT re-executed: a warning is printed,
+a dedicated repeat sound plays, and the hash is copied to the clipboard
+(never the full command -- so extremely long commands stay terse). At
+the end, an interactive prompt `re-execute? [y/N]` (default: no, only
+when stdin is a TTY) lets you re-run the identical command and copy the
+fresh output. State lives in `~/.cache/pty-run/`:
+`last_cmd.sha256` (last hash), `last_cmd` (last command),
+`last_output` (last normalized output), and `history/<hash>.{cmd,out}`
+per run. The special sound is
+`~/.config/clipso/sounds/specials/repeated.wav`, rendered from
 `sounds/specials/repeated.abc` by `sounds/generate.sh`.
+`clipso show <hash>` prints the command recorded for a hash plus its
+output. The hash is prepended to every `clipso run` payload and is what
+the repeat guard copies to the clipboard -- so a very long command never
+has to be re-pasted just to identify what was run.
