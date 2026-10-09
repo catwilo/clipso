@@ -65,7 +65,8 @@ _run_shell="$(command -v bash || echo /bin/sh)"
 _run_inner="$_run_shell $_run_script"
 
 _clean_run_log() {
-    sed -i '1{/^Script started/d}; ${/^Script done/d}; s/\x1b\[[0-9;]*[GKHFABCDJsu]//g; s/\x1b\[?[0-9;]*[hl]//g; s/\r//g' "$1"
+    sed -i '1{/^Script started/d}; ${/^Script done/d}; s/\r//g' "$1"
+    strip_control "$1"
 }
 
 printf '\033[?1049h\033[2J\033[H'
@@ -81,8 +82,13 @@ fi
 # Leave alt-screen BEFORE rendering, so the normalized output, line numbers and
 # [OK] line are painted on the normal screen and stay visible.
 printf '\033[?1049l\033[?25h'
-# _run_cmd already extracted above (repeat guard)
+# Drain late terminal replies (CPR, OSC color reports) that arrive after the
+# pty exits: a short pause lets stragglers land in the log, then a second
+# strip pass removes anything that slipped in during the pause. Two passes
+# because the first strip can run before the last reply reaches the file.
+sleep 0.1
 _clean_run_log "$_run_log"
+strip_control "$_run_log"
 _run_lines="$(wc -l < "$_run_log" | tr -d ' ')"
 _run_size="$(fmt_size "$(wc -c < "$_run_log" | tr -d ' ')")"
 _dim=$'\033[2m'
@@ -98,7 +104,7 @@ mv "$_run_tmp" "$_run_log"
 # identical with the live copy. The display above still got the colored log.
 mkdir -p "$_persist_dir/history"
 printf '%s\n' "$_run_cmd" > "$_persist_dir/history/${_run_hash}.cmd"
-sed 's/\x1b\[[0-9;]*m//g' "$_run_log" > "$_persist_dir/history/${_run_hash}.out"
+cp "$_run_log" "$_persist_dir/history/${_run_hash}.out" && strip_control "$_persist_dir/history/${_run_hash}.out"
 printf '%s\n' "$_run_hash" > "$_prev_hash_file"
 printf '%s\n' "$_run_cmd" > "$_persist_dir/last_cmd"
 cp "$_persist_dir/history/${_run_hash}.out" "$_persist_dir/last_output"

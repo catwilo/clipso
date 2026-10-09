@@ -212,7 +212,7 @@ BD=$'\033[1;2m' DIM=$'\033[2m'
 if [ -n "${CLIPSO_TO:-}" ]; then
     if [ "${CLIPSO_STRIP_ANSI:-1}" = "1" ]; then
         _stripped="$TMP.strip"
-        sed 's/\x1b\[[0-9;]*m//g' "$TMP" > "$_stripped" && mv "$_stripped" "$TMP"
+        strip_control "$TMP"
         BYTES="$(wc -c < "$TMP" | tr -d ' ')"
         size="$(fmt_size "$BYTES")"
     fi
@@ -223,7 +223,7 @@ if [ -n "${CLIPSO_TO:-}" ]; then
 else
     if [ "${CLIPSO_STRIP_ANSI:-1}" = "1" ]; then
         _stripped="$TMP.strip"
-        sed 's/\x1b\[[0-9;]*m//g' "$TMP" > "$_stripped" && mv "$_stripped" "$TMP"
+        strip_control "$TMP"
         BYTES="$(wc -c < "$TMP" | tr -d ' ')"
         size="$(fmt_size "$BYTES")"
     fi

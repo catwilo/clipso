@@ -39,3 +39,13 @@ fmt_size() {
         printf '%d.%02d MB' $(( b / 1048576 )) $(( (b % 1048576) * 100 / 1048576 ))
     fi
 }
+
+# strip_control <file> -- remove terminal control sequences in place.
+# Covers CSI cursor/erase, CSI SGR colors, OSC replies (BEL or ST
+# terminated) and CPR cursor-position reports. The last three are the
+# bytes a terminal sends back when probed via the pty (e.g. background
+# color query, cursor position); without this they leak into the
+# clipboard payload as "weird characters".
+strip_control() {
+    sed -i 's/\x1b\[[0-9;]*[GKHFABCDJsu]//g; s/\x1b\[?[0-9;]*[hl]//g; s/\x1b\][^\x07\x1b]*\x07//g; s/\x1b\][^\x07\x1b]*\x1b\\//g; s/\x1b\[[0-9;]*R//g; s/\x1b\[[0-9;]*m//g' "$1"
+}
