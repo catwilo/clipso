@@ -8,7 +8,29 @@ else
     RED='' YELLOW='' GREEN='' CYAN='' RESET=''
 fi
 
-_TTY_OUT() { { true >/dev/tty; } 2>/dev/null && printf "$@" >/dev/tty || printf "$@" >&2; }
+# _tty_path -- where display output goes: $CLIPSO_TTY_FILE when set
+# (test runners), /dev/tty when writable, stderr otherwise. Single source
+# of truth for every writer that needs to paint on the user's terminal.
+_tty_path() {
+    if [ -n "${CLIPSO_TTY_FILE:-}" ]; then
+        printf '%s\n' "$CLIPSO_TTY_FILE"
+    elif { true >/dev/tty; } 2>/dev/null; then
+        printf '%s\n' /dev/tty
+    else
+        printf '%s\n' /dev/stderr
+    fi
+}
+
+_TTY_OUT() {
+    # Test runners and similar callers can redirect the display to a file
+    # by exporting CLIPSO_TTY_FILE. Live behavior (write to /dev/tty, or
+    # stderr when no tty) is unchanged when the variable is unset.
+    if [ -n "${CLIPSO_TTY_FILE:-}" ]; then
+        printf "$@" >> "$CLIPSO_TTY_FILE"
+        return 0
+    fi
+    { true >/dev/tty; } 2>/dev/null && printf "$@" >/dev/tty || printf "$@" >&2
+}
 ok()   { _TTY_OUT "${GREEN}[OK]${RESET}  ${*}\n"; }
 warn() { _TTY_OUT "${YELLOW}[WARN]${RESET}  %s\n" "$*"; }
 die()  { printf "${RED}[ERROR]${RESET} %s\n" "$*" >&2; exit 1; }

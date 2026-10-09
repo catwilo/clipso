@@ -43,11 +43,12 @@ if [ -f "$_prev_hash_file" ] && [ "$(cat "$_prev_hash_file")" = "$_run_hash" ]; 
     if [ -t 0 ]; then
         # Ctrl+C at the prompt cancels the run (exit 130); Ctrl+D (EOF) is the
         # default answer ("no") and exits cleanly. Trap restored afterwards.
-        trap 'printf "\n" >/dev/tty; exit 130' INT
-        printf '\n  %brepeat detected%b  identical to previous run\n' "$YELLOW" "$RESET" >/dev/tty
-        printf '  re-execute? %b[y/N]%b ' "$CYAN" "$RESET" >/dev/tty
+        _guard_tty="$(_tty_path)"
+        trap 'printf "\n" >> "$_guard_tty"; exit 130' INT
+        printf '\n  %brepeat detected%b  identical to previous run\n' "$YELLOW" "$RESET" >> "$_guard_tty"
+        printf '  re-execute? %b[y/N]%b ' "$CYAN" "$RESET" >> "$_guard_tty"
         if ! read -r _ans; then
-            printf '\n' >/dev/tty
+            printf '\n' >> "$_guard_tty"
             exit 0
         fi
         trap 'printf "\033[?1049l\033[?25h"' INT TERM HUP

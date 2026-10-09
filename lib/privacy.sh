@@ -82,7 +82,7 @@ privacy_scan() {
 privacy_display() {
     local src="$1" nums="${2:-1}"
     local tty
-    { true >/dev/tty; } 2>/dev/null && tty=/dev/tty || tty=/dev/stderr
+    tty="$(_tty_path)"
 
     if [ "${PRIVACY_HITS:-0}" -gt 0 ] && [ -f "${PRIVACY_INFO_FILE:-}" ]; then
         awk -v p="$PRIVACY_INFO_FILE" -v red="$RED" -v cyan="$CYAN" -v rst="$RESET" -v nums="$nums" \

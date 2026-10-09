@@ -73,7 +73,7 @@ _run_tests() {
         bats_bin="$HOME/.local/bin/bats"
     fi
     [ -x "$bats_bin" ] || die "bats not executable: $bats_bin"
-    "$bats_bin" "$SCRIPT_DIR/tests/"
+    BATS="$bats_bin" bash "$SCRIPT_DIR/tests/run.sh"
 }
 
 _do_verify() {

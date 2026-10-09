@@ -68,3 +68,69 @@ setup() { setup_env; }
     run bash "$CLIPSO" "$big" </dev/null
     [ "$status" -eq 0 ]
 }
+
+@test "clipso user@host:/path reads a remote file via ssh" {
+    # Fake ssh: last arg is the remote command ("cat <path>"). Emit content.
+    cat > "$BIN/ssh" <<'FAKE'
+#!/usr/bin/env bash
+for last; do :; done
+case "$last" in
+    "cat "*) printf 'remote-line-1\nremote-line-2\n'; exit 0 ;;
+esac
+exit 1
+FAKE
+    chmod +x "$BIN/ssh"
+
+    run bash "$CLIPSO" "u@remote.invalid:/etc/hosts" </dev/null
+    [ "$status" -eq 0 ]
+    grep -q 'remote-line-1' "$CLIPBOARD_FILE"
+    grep -q 'remote-line-2' "$CLIPBOARD_FILE"
+}
+
+@test "clipso user@host:/path ssh failure: dies with actionable message" {
+    cat > "$BIN/ssh" <<'FAKE'
+#!/usr/bin/env bash
+printf 'fake ssh: permission denied\n' >&2
+exit 255
+FAKE
+    chmod +x "$BIN/ssh"
+
+    # warn() writes to /dev/tty (not captured by BATS run); die() writes to
+    # stderr (captured). Assert only on what BATS can observe here: status
+    # and the die() message.
+    run bash "$CLIPSO" "u@remote.invalid:/etc/hosts" </dev/null
+    [ "$status" -ne 0 ]
+    [[ "$output" == *'failed to read remote file'* ]]
+}
+
+@test "clipso --to <alias> <file> sends the payload via nclip-send" {
+    export NOEMAP_BASE="$BATS_TEST_TMPDIR/noemap"
+    mkdir -p "$NOEMAP_BASE/bin" "$NOEMAP_BASE/state"
+    cat > "$NOEMAP_BASE/bin/nclip-send" <<'FAKE'
+#!/usr/bin/env bash
+printf '%s\n' "$1" >> "$NCLIP_ALIASES_FILE"
+cat >> "$NCLIP_PAYLOAD_FILE"
+FAKE
+    chmod +x "$NOEMAP_BASE/bin/nclip-send"
+    export NCLIP_ALIASES_FILE="$BATS_TEST_TMPDIR/nclip-aliases"
+    export NCLIP_PAYLOAD_FILE="$BATS_TEST_TMPDIR/nclip-payload"
+    : > "$NCLIP_ALIASES_FILE"
+    : > "$NCLIP_PAYLOAD_FILE"
+    printf 'tx2|x\n' > "$NOEMAP_BASE/state/devices.db"
+
+    src="$BATS_TEST_TMPDIR/to-src.txt"
+    printf 'to-alias-payload-line\n' > "$src"
+
+    run bash "$CLIPSO" --to tx2 "$src" </dev/null
+    [ "$status" -eq 0 ]
+
+    # send_to_remotes forks nclip-send in the background; poll briefly.
+    i=0
+    while [ $i -lt 30 ] && [ ! -s "$NCLIP_ALIASES_FILE" ]; do
+        sleep 0.1
+        i=$((i+1))
+    done
+
+    [ "$(cat "$NCLIP_ALIASES_FILE")" = "tx2" ]
+    grep -q 'to-alias-payload-line' "$NCLIP_PAYLOAD_FILE"
+}
