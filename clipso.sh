@@ -20,6 +20,7 @@ source "$CLIPSO_DIR/lib/privacy.sh"
 source "$CLIPSO_DIR/lib/clipboard.sh"
 source "$CLIPSO_DIR/lib/remote.sh"
 source "$CLIPSO_DIR/lib/paginate.sh"
+source "$CLIPSO_DIR/lib/history.sh"
 
 # play-confirm.sh — mandatory dependency (confirmation sound)
 [ -f "$CLIPSO_DIR/play-confirm.sh" ] || die "missing dependency: play-confirm.sh"
@@ -39,27 +40,8 @@ case "${1:-}" in
         [ -f "$_cache" ] || die "no clipboard cache found -- nothing copied yet via clipso"
         cat "$_cache"; exit 0 ;;
 
-    show)
-        [ -n "${2:-}" ] || die "clipso show requires a hash"
-        _hist_dir="${XDG_CACHE_HOME:-$HOME/.cache}/pty-run/history"
-        _cmd_file="$_hist_dir/$2.cmd"
-        _out_file="$_hist_dir/$2.out"
-        [ -f "$_cmd_file" ] || die "no recorded command for hash: $2"
-        printf '$ %s\n' "$(cat "$_cmd_file")"
-        [ -f "$_out_file" ] && cat "$_out_file"
-        exit 0 ;;
-
-    send-payload)
-        [ -n "${2:-}" ] || die "clipso send-payload requires a hash"
-        _sp_src="${XDG_CACHE_HOME:-$HOME/.cache}/pty-run/history/$2.out"
-        [ -f "$_sp_src" ] || die "no recorded payload for hash: $2"
-        TMP="$(mktemp "${TMPDIR:-/tmp}/clipso.XXXXXX")"
-        trap 'rm -f "$TMP"' EXIT INT TERM
-        cp "$_sp_src" "$TMP"
-        CLIP_ENV="$(detect_env)"
-        do_copy "$(wc -c < "$TMP" | tr -d ' ')"
-        _play_special repeated
-        exit 0 ;;
+    show)         history_show "${2:-}"; exit 0 ;;
+    send-payload) history_send_payload "${2:-}"; exit 0 ;;
 
     target)
         sub="${2:-status}"

@@ -48,6 +48,20 @@ else
     die "no writable bin dir found"
 fi
 
+# _run_tests -- run the BATS regression suite; install BATS on first use.
+_run_tests() {
+    local bats_bin="$HOME/.local/bin/bats"
+    [ -x "$bats_bin" ] || bats_bin="$(command -v bats 2>/dev/null || true)"
+    if [ -z "$bats_bin" ] || [ ! -x "$bats_bin" ]; then
+        local repo="$HOME/bats-core"
+        [ -d "$repo" ] || git clone --depth 1 https://github.com/bats-core/bats-core.git "$repo" >&2 || die "failed to clone bats-core"
+        bash "$repo/install.sh" "$HOME/.local" >&2 || die "failed to install bats"
+        bats_bin="$HOME/.local/bin/bats"
+    fi
+    [ -x "$bats_bin" ] || die "bats not executable: $bats_bin"
+    "$bats_bin" "$SCRIPT_DIR/tests/"
+}
+
 _do_verify() {
     local found target
     found="$(command -v clipso 2>/dev/null || true)"
@@ -59,7 +73,8 @@ _do_verify() {
     echo "verify" | clipso - >/dev/null 2>&1 && ok "clipso runs OK" || { warn "clipso run failed"; return 1; }
 }
 
-if [ "${1:-}" = verify ]; then _do_verify; exit $?; fi
+if [ "${1:-}" = verify ]; then _do_verify;  exit $?; fi
+if [ "${1:-}" = test ];   then _run_tests; exit $?; fi
 
 _link() {
     local src="$1" dst="$2"

@@ -47,19 +47,55 @@ Headless servers use OSC52 only.
 
 Wraps the shell so its output lands in the clipboard. Each run is
 identified by a SHA256 of its body (shebang excluded); the hash is
-prepended to the clipboard payload. If the script body is identical to
-the previous run, the command is NOT re-executed: a warning is printed,
-a dedicated repeat sound plays, and the hash is copied to the clipboard
-(never the full command -- so extremely long commands stay terse). At
-the end, an interactive prompt `re-execute? [y/N]` (default: no, only
-when stdin is a TTY) lets you re-run the identical command and copy the
-fresh output. State lives in `~/.cache/pty-run/`:
-`last_cmd.sha256` (last hash), `last_cmd` (last command),
-`last_output` (last normalized output), and `history/<hash>.{cmd,out}`
-per run. The special sound is
-`~/.config/clipso/sounds/specials/repeated.wav`, rendered from
-`sounds/specials/repeated.abc` by `sounds/generate.sh`.
-`clipso show <hash>` prints the command recorded for a hash plus its
-output. The hash is prepended to every `clipso run` payload and is what
-the repeat guard copies to the clipboard -- so a very long command never
+prepended to the clipboard payload as a one-line header:
+
+    [clipso]  hash=<sha256>  lines=<N>  size=<X> B
+
+If the script body is identical to the previous run, the command is NOT
+re-executed. The previous payload (hash + output) is copied to the
+clipboard, a dedicated repeat sound plays, and a short prompt appears:
+
+    repeat detected  identical to previous run
+    re-execute? [y/N]
+
+Default is `no`, so the clipboard keeps the previous run's payload. Answer
+`yes` to re-execute and overwrite the clipboard with the fresh output.
+Ctrl+C cancels (exit 130); Ctrl+D is `no`. The prompt only appears when
+stdin is a TTY -- scripts, cron and pipes keep the old behavior (replay
+and exit).
+
+### Recorded runs
+
+    clipso show <hash>       print the command and its recorded output
+    clipso send-payload <hash>  copy the recorded payload back to the clipboard
+
+Every run persists `history/<hash>.{cmd,out}` under `~/.cache/pty-run/`.
+`show` is how a very long command is identified after the fact: the hash
+travels in the clipboard; the command body stays on disk.
+
+### State
+
+`~/.cache/pty-run/` holds the guard state and history:
+
+- `last_cmd.sha256` -- hash of the last run
+- `last_cmd` -- last command body
+- `last_output` -- last normalized output (ANSI stripped, same bytes as clipboard)
+- `history/<hash>.{cmd,out}` -- per-run record, never touched by `reset`
+
+    clipso reset
+
+Disarms the guard (drops last-run state), sweeps orphan temp files older
+than 5 minutes from `$TMPDIR`, and preserves `history/`.
+
+## Tests
+
+The regression suite runs on BATS-core and lives in `tests/`:
+
+    bash install.sh test
+
+On first use it clones BATS into `~/bats-core` and installs it under
+`~/.local`. The suite covers the repeat guard, hash identifier
+(`show`/`send-payload`), reset behavior (state disarm, history preserved,
+orphan sweep) and display normalization (no `Script started`/`TERM`/`TTY`
+lines; header format).
 has to be re-pasted just to identify what was run.
