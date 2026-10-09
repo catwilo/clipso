@@ -33,3 +33,57 @@ history_send_payload() {
     do_copy "$(wc -c < "$TMP" | tr -d ' ')"
     _play_special repeated
 }
+
+# history_purge -- keep only the newest $CLIPSO_HISTORY_MAX entries.
+# An "entry" is the pair <hash>.cmd + <hash>.out; .out is used as the
+# anchor because every run writes exactly one of each. Called after each
+# run so the history dir never grows without bound.
+history_purge() {
+    local dir max
+    dir="$(history_dir)"
+    [ -d "$dir" ] || return 0
+    max="${CLIPSO_HISTORY_MAX:-200}"
+    [ "$max" -gt 0 ] 2>/dev/null || return 0
+
+    local victims
+    victims="$(ls -t "$dir"/*.out 2>/dev/null | tail -n +$((max + 1)))" || true
+    [ -n "$victims" ] || return 0
+
+    local f hash
+    for f in $victims; do
+        hash="${f##*/}"; hash="${hash%.out}"
+        rm -f "$f" "$dir/$hash.cmd"
+    done
+}
+
+# history_list [N] -- print the N most recent entries (default 20), newest
+# first, one line each: "<when>  <hash>  $ <first command line>".
+history_list() {
+    local n="${1:-20}"
+    case "$n" in ''|*[!0-9]*) n=20 ;; esac
+    [ "$n" -gt 0 ] 2>/dev/null || n=20
+
+    local dir
+    dir="$(history_dir)"
+    if [ ! -d "$dir" ]; then
+        printf '(no recorded runs)\n'
+        return 0
+    fi
+
+    local found=0 out hash when first_line
+    while IFS= read -r out; do
+        [ -f "$out" ] || continue
+        found=1
+        hash="${out##*/}"; hash="${hash%.out}"
+        when="$(date -r "$out" '+%Y-%m-%d %H:%M' 2>/dev/null \
+              || date -d "@$(stat -c %Y "$out" 2>/dev/null || echo 0)" '+%Y-%m-%d %H:%M' 2>/dev/null \
+              || printf '?')"
+        first_line="$(head -n1 "$dir/$hash.cmd" 2>/dev/null || printf '')"
+        if [ "${#first_line}" -gt 60 ]; then
+            first_line="${first_line:0:57}..."
+        fi
+        printf '%s%s%s  %s%s%s  $ %s\n' "$DIM" "$when" "$RESET" "$CYAN" "$hash" "$RESET" "$first_line"
+    done < <(ls -t "$dir"/*.out 2>/dev/null | head -n "$n")
+
+    [ "$found" -eq 1 ] || printf '(no recorded runs)\n'
+}

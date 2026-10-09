@@ -7,6 +7,7 @@ set -Eeuo pipefail
 CLIPSO_DIR="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/.." && pwd)"
 
 source "$CLIPSO_DIR/lib/core.sh"
+source "$CLIPSO_DIR/lib/history.sh"
 
 [ $# -eq 1 ] || die "clipso run requires exactly one argument: a script file"
 _run_script="$1"
@@ -109,5 +110,6 @@ cp "$_run_log" "$_persist_dir/history/${_run_hash}.out" && strip_control "$_pers
 printf '%s\n' "$_run_hash" > "$_prev_hash_file"
 printf '%s\n' "$_run_cmd" > "$_persist_dir/last_cmd"
 cp "$_persist_dir/history/${_run_hash}.out" "$_persist_dir/last_output"
+history_purge
 "$CLIPSO_DIR/clipso.sh" "$_run_log"
 exit "$_run_rc"

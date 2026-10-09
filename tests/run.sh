@@ -71,8 +71,14 @@ for f in "${FILES[@]}"; do
     done < <("$BATS" --tap "$f" 2>&1)
 
     if [ "$_file_failed" -eq 1 ] && [ -s "$_tty_file" ]; then
-        printf '           %s--- tty output (%s) ---%s\n' "$DIM" "$fname" "$RESET"
-        sed 's/^/           /' "$_tty_file"
+        _tty_total=$(wc -l < "$_tty_file" | tr -d ' ')
+        printf '           %s--- tty noise from %s (last 15 of %s lines) ---%s\n' \
+            "$DIM" "$fname" "$_tty_total" "$RESET"
+        tail -15 "$_tty_file" | sed 's/^/           /'
+        if [ "$_tty_total" -gt 15 ]; then
+            printf '           %s(... %d more line(s) suppressed; the pty produced them, not a test failure)%s\n' \
+                "$DIM" "$((_tty_total - 15))" "$RESET"
+        fi
     fi
     rm -f "$_tty_file"
     unset CLIPSO_TTY_FILE

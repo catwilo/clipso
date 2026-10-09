@@ -42,6 +42,7 @@ case "${1:-}" in
 
     show)         history_show "${2:-}"; exit 0 ;;
     send-payload) history_send_payload "${2:-}"; exit 0 ;;
+    history)      history_list "${2:-}"; exit 0 ;;
 
     target)
         sub="${2:-status}"
@@ -135,6 +136,7 @@ usage:
   echo hello | clipso               read piped stdin
   clipso --paste / -P               paste from mesh clipboard cache
   clipso show <hash>                show command + output for a recorded hash
+  clipso history [N]                list the N most recent recorded runs (default 20)
   clipso --to <alias>               one-shot send to remote clipboard
 
 remote target management:

@@ -3,9 +3,9 @@
 
 # NO_COLOR: honor https://no-color.org -- also strip colors when stderr is not a tty
 if { true >/dev/tty; } 2>/dev/null && [ -z "${NO_COLOR:-}" ]; then
-    RED='\033[0;31m' YELLOW='\033[1;33m' GREEN='\033[0;32m' CYAN='\033[0;36m' RESET='\033[0m'
+    RED='\033[0;31m' YELLOW='\033[1;33m' GREEN='\033[0;32m' CYAN='\033[0;36m' DIM='\033[2m' RESET='\033[0m'
 else
-    RED='' YELLOW='' GREEN='' CYAN='' RESET=''
+    RED='' YELLOW='' GREEN='' CYAN='' DIM='' RESET=''
 fi
 
 # _tty_path -- where display output goes: $CLIPSO_TTY_FILE when set

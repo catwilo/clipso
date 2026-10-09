@@ -73,6 +73,22 @@ Every run persists `history/<hash>.{cmd,out}` under `~/.cache/pty-run/`.
 `show` is how a very long command is identified after the fact: the hash
 travels in the clipboard; the command body stays on disk.
 
+`clipso history [N]` lists the N most recent runs (default 20), newest
+first:
+
+    <when>  <hash>  $ <first line of the command>
+
+### Retention
+
+`history/` is bounded by `CLIPSO_HISTORY_MAX` (default 200 entries; one
+entry = `<hash>.cmd` + `<hash>.out`). After every run the oldest entries
+past the limit are dropped. Set a different cap in
+`~/.config/clipso/config`:
+
+    CLIPSO_HISTORY_MAX=500
+
+Set it to `0` to disable pruning (unbounded history -- not recommended).
+
 ### State
 
 `~/.cache/pty-run/` holds the guard state and history:
