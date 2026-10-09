@@ -40,6 +40,20 @@ PLAY_CONFIRM="$SCRIPT_DIR/play-confirm.sh"
 [ -f "$PLAY_CONFIRM" ] || die "play-confirm.sh not found at $PLAY_CONFIRM"
 [ -x "$CLIPSO_SH" ] || chmod +x "$CLIPSO_SH"
 
+# Dependency checks -- warn with an actionable command. Missing pieces never
+# abort the install: clipso degrades gracefully (OSC52, silent guard).
+if [ -n "${PREFIX:-}" ]; then
+    if ! command -v termux-clipboard-set >/dev/null 2>&1; then
+        warn "termux-clipboard-set missing -- clipboard will fall back to OSC52 only"
+        warn "  install it with:  pkg install termux-api"
+    fi
+fi
+if ! command -v miau-dio >/dev/null 2>&1; then
+    warn "miau-dio missing -- confirmation sounds and the repeat-guard sound cannot render"
+    warn "  install it from the unix-toolkit-tools registry:  ut install miau-dio"
+fi
+[ -x "$CLIPSO_SH" ] || chmod +x "$CLIPSO_SH"
+
 if [ -n "${PREFIX:-}" ] && [ -d "${PREFIX}/bin" ]; then
     BINDIR="${PREFIX}/bin"
 elif [ -d "$HOME/.local/bin" ] || mkdir -p "$HOME/.local/bin" 2>/dev/null; then
@@ -151,6 +165,7 @@ _wire_keybinding() {
         printf '  BUFFER="clipso run $_tmp"\n'
         printf '  zle accept-line\n'
         printf '}\n'
+        printf '}\n'
         printf '_clipso_zshaddhistory() {\n'
         printf '  [[ "$1" == "clipso run /"* ]] && return 1\n'
         printf '  return 0\n'
@@ -166,6 +181,21 @@ _wire_keybinding() {
 }
 
 _wire_keybinding "$HOME/.zshrc"
+
+# First-run bootstrap: if BATS is not present, install it once so the
+# regression suite is usable from this node without manual setup. Failure
+# here is non-fatal -- the tools are already installed by this point.
+if [ ! -x "$HOME/.local/bin/bats" ] && ! command -v bats >/dev/null 2>&1; then
+    _bats_repo="$HOME/bats-core"
+    if [ ! -d "$_bats_repo" ]; then
+        git clone --depth 1 https://github.com/bats-core/bats-core.git "$_bats_repo" >&2 \
+            || warn "failed to clone bats-core (run tests later with: bash install.sh test)"
+    fi
+    if [ -d "$_bats_repo" ]; then
+        bash "$_bats_repo/install.sh" "$HOME/.local" >&2 \
+            || warn "failed to install bats (run tests later with: bash install.sh test)"
+    fi
+fi
 
 ok "done — reload shell:"
 printf '  source ~/.zshrc\n'

@@ -93,9 +93,18 @@ The regression suite runs on BATS-core and lives in `tests/`:
 
     bash install.sh test
 
-On first use it clones BATS into `~/bats-core` and installs it under
-`~/.local`. The suite covers the repeat guard, hash identifier
-(`show`/`send-payload`), reset behavior (state disarm, history preserved,
-orphan sweep) and display normalization (no `Script started`/`TERM`/`TTY`
-lines; header format).
-has to be re-pasted just to identify what was run.
+BATS is bootstrapped automatically on first use: the installer clones
+`~/bats-core` and installs the binary under `~/.local`. The suite covers
+the repeat guard, the hash identifier (`show` / `send-payload`), reset
+behavior (state disarm, history preserved, orphan sweep) and display
+normalization (no `Script started` / `TERM` / `TTY` lines; header format).
+
+## Dependencies
+
+Checked by `install.sh` with actionable warnings (missing pieces never
+abort the install -- clipso degrades gracefully):
+
+- `termux-clipboard-set` (Termux only) -- `pkg install termux-api`.
+  Without it, clipboard falls back to OSC52.
+- `miau-dio` -- renders confirmation sounds and the repeat-guard sound.
+  Without it, the guard is silent (behavior unchanged, no audio feedback).
