@@ -93,11 +93,15 @@ mv "$_run_tmp" "$_run_log"
 # Copy whatever the command produced -- normal output or an error message.
 # Runs regardless of the command's exit code; cleanup handled by EXIT trap.
 # Persist raw cmd + normalized output under the hash for `clipso show <hash>`.
+# Persist history/last_output as STRIPPED text -- exactly what lands on the
+# clipboard. Keeps `clipso show`, `send-payload` and the repeat guard byte
+# identical with the live copy. The display above still got the colored log.
 mkdir -p "$_persist_dir/history"
 printf '%s\n' "$_run_cmd" > "$_persist_dir/history/${_run_hash}.cmd"
-cp "$_run_log" "$_persist_dir/history/${_run_hash}.out"
+sed 's/\x1b\[[0-9;]*m//g' "$_run_log" > "$_persist_dir/history/${_run_hash}.out"
 printf '%s\n' "$_run_hash" > "$_prev_hash_file"
 printf '%s\n' "$_run_cmd" > "$_persist_dir/last_cmd"
-cp "$_run_log" "$_persist_dir/last_output"
+cp "$_persist_dir/history/${_run_hash}.out" "$_persist_dir/last_output"
+"$CLIPSO_DIR/clipso.sh" "$_run_log"
 "$CLIPSO_DIR/clipso.sh" "$_run_log"
 exit "$_run_rc"
