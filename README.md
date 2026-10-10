@@ -103,6 +103,20 @@ Set it to `0` to disable pruning (unbounded history -- not recommended).
 Disarms the guard (drops last-run state), sweeps orphan temp files older
 than 5 minutes from `$TMPDIR`, and preserves `history/`.
 
+## Wrapper environment contract
+
+When clipso wraps a command with `clipso run <script>`, it exports two
+environment variables to the wrapped process:
+
+- `CLIPSO_ACTIVE=1` -- "you are being captured". Tools that would otherwise
+  attach a UI (e.g. `ut distribute` opening byobu panes) read this to pick
+  a mode that leaves the captured stream clean.
+- `UT_NO_ATTACH=1` -- narrower alias for the same intent: do not open any
+  interactive terminal UI. Any tool may honor it.
+
+Both are read-only hints. clipso never inspects which tool is running; it
+just announces that it owns the PTY.
+
 ## Confirmation sounds
 
 `play-confirm` plays the confirmation WAVs. Installed as a command
@@ -118,6 +132,27 @@ and `name` invocations leave the counter untouched. Unknown selectors
 warn and exit 0 without playing anything. On non-Termux hosts it is a
 silent no-op. Every call runs in the background and never blocks the
 shell.
+
+### Player selection
+
+The player is not hardcoded; it is probed and cached.
+
+Order of preference: `play-audio` (Termux AudioTrack wrapper), `paplay`
+(PulseAudio client), `play` (SoX), `aplay` (ALSA), `mpv`. The chosen
+player is resolved once per environment change and stored in
+`${XDG_CACHE_HOME:-$HOME/.cache}/clipso/player`.
+
+"Usable" is not the same as "present on PATH". `paplay` exists on Termux
+but fails with "Connection refused" because the PulseAudio daemon does
+not expose a native socket to the unprivileged user; the probe for
+`paplay` runs `pactl info` first and rejects it if the daemon is not
+reachable. `play-audio` needs no probe: its only requirement is presence.
+
+Every attempt writes the player's own stdout/stderr to
+`${XDG_CACHE_HOME:-$HOME/.cache}/clipso/player.log`, truncated on each
+launch. The happy path leaves the terminal silent and the log empty. If
+no candidate is usable, `play-confirm` prints a per-candidate diagnosis
+(not present / present but unusable) and the log path, then returns 0.
 
 Resolution order for an argument `X`:
 
