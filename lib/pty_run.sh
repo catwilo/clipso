@@ -72,6 +72,10 @@ _clean_run_log() {
 }
 
 printf '\033[?1049h\033[2J\033[H'
+# Mark the environment so wrapped tools know they are being captured by
+# clipso. Interactive-only output (tmux attach, terminal repaints) must
+# be suppressed so the captured stream is clean text.
+export CLIPSO_ACTIVE=1
 # set -e is intentionally bypassed here via if/else: the inner command may fail
 # and we must still reach the alt-screen close below.
 if COLUMNS=$(tput cols 2>/dev/null || echo 80) LINES=$(tput lines 2>/dev/null || echo 24) \
