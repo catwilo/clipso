@@ -76,6 +76,11 @@ printf '\033[?1049h\033[2J\033[H'
 # clipso. Interactive-only output (tmux attach, terminal repaints) must
 # be suppressed so the captured stream is clean text.
 export CLIPSO_ACTIVE=1
+# Generic contract for every tool invoked under clipso: do not run
+# interactive side-effects that would write terminal repaints into the
+# captured stream. Tools that attach a multiplexer (ut distribute) honor
+# this by skipping the attach; the workers still run detached.
+export UT_NO_ATTACH=1
 # set -e is intentionally bypassed here via if/else: the inner command may fail
 # and we must still reach the alt-screen close below.
 if COLUMNS=$(tput cols 2>/dev/null || echo 80) LINES=$(tput lines 2>/dev/null || echo 24) \

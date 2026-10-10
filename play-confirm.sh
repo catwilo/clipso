@@ -22,32 +22,136 @@
 
 CLIPSO_SOUNDS_DIR="${CLIPSO_SOUNDS_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/clipso/sounds}"
 
-# _clipso_player -- first available WAV player on this system.
+# Player subsystem. Two files:
+#   player       one line: the resolved player name. Cached so the
+#                capability probe runs at most once per environment
+#                change, not on every sound.
+#   player.log   stdout+stderr of the LAST player invocation. Truncated
+#                on every launch so it always describes a single attempt.
+#                Kept out of /dev/null on purpose: if the sound does not
+#                come out, the reason is one `cat` away.
+CLIPSO_CACHE_DIR="${CLIPSO_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/clipso}"
+CLIPSO_PLAYER_CACHE="$CLIPSO_CACHE_DIR/player"
+CLIPSO_PLAYER_LOG="$CLIPSO_CACHE_DIR/player.log"
+
+# Every candidate this module knows about, in preference order.
+# Preference is "best integration for the environment"; usability is
+# decided at runtime by _clipso_player_usable. Adding a new player means
+# appending here and teaching _clipso_player_usable about it.
+_CLIPSO_PLAYER_CANDIDATES="play-audio paplay play aplay mpv"
+
+# _clipso_player_present <name> -- binary on PATH.
+_clipso_player_present() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# _clipso_player_usable <name> -- present AND able to play right now.
+#
+# Presence is not enough. paplay is on PATH on Termux yet fails with
+# "Connection refused" because the PulseAudio daemon does not publish a
+# native protocol socket to the unprivileged user. Playing a silent
+# probe would be worse (a beep on every startup); checking the daemon
+# through pactl answers the same question without side effects.
+#
+# Each player's "am I usable" question is answered by the cheapest test
+# its environment exposes:
+#   play-audio  Termux AudioTrack wrapper, no daemon in the middle:
+#               presence is the whole question.
+#   paplay      PulseAudio client; requires the daemon to be reachable.
+#               pactl (same package) is the standard reachability probe.
+#               If pactl is absent, assume the daemon setup is minimal
+#               and let presence decide.
+#   play/aplay  Local audio devices, no daemon: presence is the answer.
+#   mpv         Broadly available fallback: presence is the answer.
+_clipso_player_usable() {
+    _clipso_player_present "$1" || return 1
+    case "$1" in
+        paplay)
+            if command -v pactl >/dev/null 2>&1; then
+                pactl info >/dev/null 2>&1
+            else
+                return 0
+            fi
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+}
+
+# _clipso_player_diagnose -- explain, per candidate, why none is usable.
+# Only called when the whole list failed; on the happy path nothing is
+# printed.
+_clipso_player_diagnose() {
+    printf '[WARN] play-confirm: no usable audio player on this system\n' >&2
+    for _c in $_CLIPSO_PLAYER_CANDIDATES; do
+        if ! _clipso_player_present "$_c"; then
+            printf '[WARN]   %-10s not on PATH\n' "$_c" >&2
+        elif ! _clipso_player_usable "$_c"; then
+            printf '[WARN]   %-10s present but unusable (probe failed)\n' "$_c" >&2
+        fi
+    done
+    printf '[WARN]   on Termux: pkg install termux-api   (provides play-audio)\n' >&2
+    printf '[WARN]   on Linux:  check the audio daemon: pactl info\n' >&2
+    printf '[WARN]   log:       %s\n' "$CLIPSO_PLAYER_LOG" >&2
+}
+
+# _clipso_player -- resolve once, cache the winner.
+#
+# The cached name is trusted only if the probe still passes: an
+# environment change (daemon stopped, package removed) invalidates the
+# cache and a fresh probe runs. In steady state this is one file read
+# per sound, no subprocess.
 _clipso_player() {
-    for _c in paplay play aplay mpv; do
-        command -v "$_c" >/dev/null 2>&1 && { printf '%s\n' "$_c"; return 0; }
+    local _p_cached
+    _p_cached="$(cat "$CLIPSO_PLAYER_CACHE" 2>/dev/null || true)"
+    if [ -n "$_p_cached" ] && _clipso_player_usable "$_p_cached"; then
+        printf '%s\n' "$_p_cached"
+        return 0
+    fi
+
+    local _p_name
+    for _p_name in $_CLIPSO_PLAYER_CANDIDATES; do
+        if _clipso_player_usable "$_p_name"; then
+            mkdir -p "$CLIPSO_CACHE_DIR" 2>/dev/null || true
+            printf '%s\n' "$_p_name" > "$CLIPSO_PLAYER_CACHE" 2>/dev/null || true
+            printf '%s\n' "$_p_name"
+            return 0
+        fi
     done
     return 1
 }
 
 # _play_file <path> -- play a WAV in the background; always returns 0.
-# Never blocks the shell, never fails the caller (clipso runs under set -e).
+#
+# Never blocks the shell, never fails the caller (clipso runs under
+# set -e). The player's own stdout and stderr go to $CLIPSO_PLAYER_LOG,
+# truncated on every launch: one file, always describing the last
+# attempt. Not /dev/null, because the reason a silent sound happened is
+# exactly what we want preserved. The happy path writes nothing to the
+# terminal.
 _play_file() {
     local file="$1"
     [ -f "$file" ] || {
         printf '[WARN] play-confirm: no such sound: %s\n' "$file" >&2
         return 0
     }
+
     local player
-    player="$(_clipso_player)" || {
-        printf '[WARN] play-confirm: no audio player (paplay/play/aplay/mpv)\n' >&2
+    if ! player="$(_clipso_player)"; then
+        _clipso_player_diagnose
         return 0
-    }
+    fi
+
+    mkdir -p "$CLIPSO_CACHE_DIR" 2>/dev/null || true
+    : > "$CLIPSO_PLAYER_LOG" 2>/dev/null || true
+
     case "$player" in
-        paplay) setsid "$player" "$file" >/dev/null 2>&1 & ;;
-        play)   setsid "$player" -q "$file" >/dev/null 2>&1 & ;;
-        aplay)  setsid "$player" -q "$file" >/dev/null 2>&1 & ;;
-        mpv)    setsid "$player" --no-video --really-quiet "$file" >/dev/null 2>&1 & ;;
+        play-audio) setsid play-audio "$file" >>"$CLIPSO_PLAYER_LOG" 2>&1 & ;;
+        paplay)     setsid paplay     "$file" >>"$CLIPSO_PLAYER_LOG" 2>&1 & ;;
+        play)       setsid play       "$file" >>"$CLIPSO_PLAYER_LOG" 2>&1 & ;;
+        aplay)      setsid aplay      "$file" >>"$CLIPSO_PLAYER_LOG" 2>&1 & ;;
+        mpv)        setsid mpv --no-video "$file" >>"$CLIPSO_PLAYER_LOG" 2>&1 & ;;
     esac
     disown 2>/dev/null || true
     return 0
