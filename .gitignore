@@ -1,3 +1,4 @@
 *.bak
 sounds/*.wav
 sounds/specials/*.wav
+typescript
