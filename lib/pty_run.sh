@@ -104,7 +104,7 @@ _run_lines="$(wc -l < "$_run_log" | tr -d ' ')"
 _run_size="$(fmt_size "$(wc -c < "$_run_log" | tr -d ' ')")"
 _dim=$'\033[2m'
 _node_alias="$(node_alias_local)"
-_header="$(printf '%b[clipso %s]%b  %bhash=%b%s%b  %blines=%b%s%b  %bsize=%b%s%b' "$CYAN" "$_node_alias" "$RESET" "$_dim" "$CYAN" "$_run_hash" "$RESET" "$_dim" "$CYAN" "$_run_lines" "$RESET" "$_dim" "$CYAN" "$_run_size" "$RESET")"
+_header="$(printf '%b[%s]%b  %bhash=%b%s%b  %blines=%b%s%b  %bsize=%b%s%b' "$CYAN" "$_node_alias" "$RESET" "$_dim" "$CYAN" "$_run_hash" "$RESET" "$_dim" "$CYAN" "$_run_lines" "$RESET" "$_dim" "$CYAN" "$_run_size" "$RESET")"
 _run_tmp="$(mktemp "${TMPDIR:-/tmp}/clipso-run-prepend.XXXXXX")"
 { printf '%s\n' "$_header"; cat "$_run_log"; } > "$_run_tmp"
 mv "$_run_tmp" "$_run_log"

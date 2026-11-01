@@ -224,7 +224,7 @@ if [ -n "${CLIPSO_TO:-}" ]; then
     do_copy "$BYTES"
     send_to_remotes
     remotes_rendered="$(remote_targets_rendered)"
-    ok "${CYAN}[${platform} ${node_alias}]${RESET} > [${remotes_rendered}]  --  ${BD}${src_label}${RESET}  --  ${DIM}${lines} lines - ${size}${RESET}"
+    ok "${CYAN}[${node_alias}]${RESET} > [${remotes_rendered}]  --  ${BD}${src_label}${RESET}  --  ${DIM}${lines} lines - ${size}${RESET}"
 else
     if [ "${CLIPSO_STRIP_ANSI:-1}" = "1" ]; then
         _stripped="$TMP.strip"
@@ -232,7 +232,7 @@ else
         BYTES="$(wc -c < "$TMP" | tr -d ' ')"
     fi
     do_copy "$BYTES"
-    ok "${CYAN}[${platform} ${node_alias}]${RESET}  --  ${BD}${src_label}${RESET}  --  ${DIM}${lines} lines - ${size}${RESET}"
+    ok "${CYAN}[${node_alias}]${RESET}  --  ${BD}${src_label}${RESET}  --  ${DIM}${lines} lines - ${size}${RESET}"
 fi
 if [ "$CLIPSO_REPEAT_MODE" = "1" ]; then
     _play_special repeated
