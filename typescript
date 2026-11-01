@@ -1,9 +1,0 @@
-Script started on 2026-11-01 12:05:25-05:00 [COMMAND="bash /data/data/com.termux/files/usr/tmp/bats-run-kbmBVA/test/4/repo/lib/pty_run.sh /data/data/com.termux/files/usr/tmp/bats-run-kbmBVA/test/4/run.sh" <not executed on terminal>]
-[WARN] play-confirm: no such sound: /data/data/com.termux/files/usr/tmp/bats-run-kbmBVA/test/4/home/.config/clipso/sounds/specials/repeated.wav
-[?1049h[2J[Hreexec-marker
-1793552726258866793
-[?1049l[?25h
-
-[WARN] play-confirm: no sounds dir at /data/data/com.termux/files/usr/tmp/bats-run-kbmBVA/test/4/home/.config/clipso/sounds
-
-Script done on 2026-11-01 12:05:27-05:00 [COMMAND_EXIT_CODE="0"]
