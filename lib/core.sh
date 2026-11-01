@@ -76,3 +76,14 @@ strip_control() {
     strip_display "$1"
     sed -i 's/\x1b\[[0-9;]*m//g' "$1"
 }
+
+# node_alias_local -- alias of this node, read from nina's offline cache.
+# Pure file read: no subprocess, no nina invocation. Prints "?" when the
+# cache is absent or empty so the header never lies about which node ran.
+node_alias_local() {
+    _nal_cfg="$HOME/.local/share/nina/state/node-config"
+    [ -f "$_nal_cfg" ] || { printf '?\n'; return 0; }
+    _nal_alias="$(cut -d'|' -f1 "$_nal_cfg" 2>/dev/null)"
+    [ -n "$_nal_alias" ] || { printf '?\n'; return 0; }
+    printf '%s\n' "$_nal_alias"
+}

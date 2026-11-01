@@ -5,13 +5,13 @@ load helpers
 
 setup() { setup_env; }
 
-@test "payload starts with [clipso]  hash=...  lines=N  size=X" {
+@test "payload starts with [clipso <alias>]  hash=...  lines=N  size=X" {
     s="$BATS_TEST_TMPDIR/run.sh"
     write_script "$s" 'echo display-header-test'
     run bash "$PTY_RUN" "$s" </dev/null
     [ "$status" -eq 0 ]
     first=$(head -n1 "$CLIPBOARD_FILE")
-    [[ "$first" == '[clipso]  hash='* ]]
+    [[ "$first" =~ ^\[clipso\ [^]]*\]\ \ hash= ]]
     [[ "$first" == *'  lines='* ]]
     [[ "$first" == *'  size='* ]]
 }
@@ -34,14 +34,14 @@ setup() { setup_env; }
     ! grep -q 'TTY=' "$CLIPBOARD_FILE"
 }
 
-@test "history/<hash>.out starts with the same [clipso] header (stripped)" {
+@test "history/<hash>.out starts with the same [clipso <alias>] header (stripped)" {
     s="$BATS_TEST_TMPDIR/run.sh"
     write_script "$s" 'echo history-header-test'
     run bash "$PTY_RUN" "$s" </dev/null
     [ "$status" -eq 0 ]
     h=$(cat "$STATE/last_cmd.sha256")
     first=$(head -n1 "$HIST/$h.out")
-    [[ "$first" == '[clipso]  hash='* ]]
+    [[ "$first" =~ ^\[clipso\ [^]]*\]\ \ hash= ]]
 }
 
 @test "payload strips OSC replies and CPR reports (terminal query leftovers)" {

@@ -211,6 +211,7 @@ else
     src_label="$(basename "$TARGET")"
 fi
 platform="$(platform_label)"
+node_alias="$(node_alias_local)"
 
 BD=$'\033[1;2m' DIM=$'\033[2m'
 
@@ -219,21 +220,19 @@ if [ -n "${CLIPSO_TO:-}" ]; then
         _stripped="$TMP.strip"
         strip_control "$TMP"
         BYTES="$(wc -c < "$TMP" | tr -d ' ')"
-        size="$(fmt_size "$BYTES")"
     fi
     do_copy "$BYTES"
     send_to_remotes
     remotes_rendered="$(remote_targets_rendered)"
-    ok "${CYAN}[${platform}]${RESET} > [${remotes_rendered}]  --  ${BD}${src_label}${RESET}  --  ${DIM}${lines} lines - ${size}${RESET}"
+    ok "${CYAN}[${platform} ${node_alias}]${RESET} > [${remotes_rendered}]  --  ${BD}${src_label}${RESET}  --  ${DIM}${lines} lines - ${size}${RESET}"
 else
     if [ "${CLIPSO_STRIP_ANSI:-1}" = "1" ]; then
         _stripped="$TMP.strip"
         strip_control "$TMP"
         BYTES="$(wc -c < "$TMP" | tr -d ' ')"
-        size="$(fmt_size "$BYTES")"
     fi
     do_copy "$BYTES"
-    ok "${CYAN}[${platform}]${RESET}  --  ${BD}${src_label}${RESET}  --  ${DIM}${lines} lines - ${size}${RESET}"
+    ok "${CYAN}[${platform} ${node_alias}]${RESET}  --  ${BD}${src_label}${RESET}  --  ${DIM}${lines} lines - ${size}${RESET}"
 fi
 if [ "$CLIPSO_REPEAT_MODE" = "1" ]; then
     _play_special repeated
