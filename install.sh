@@ -22,8 +22,7 @@ ok()   { printf "${GREEN}[OK]${RESET}    %s\n" "$*" >&2; }
 warn() { printf "${YELLOW}[WARN]${RESET}  %s\n" "$*" >&2; }
 die()  { printf "${RED}[ERROR]${RESET} %s\n" "$*" >&2; exit 1; }
 
-_self="$0"
-case "$_self" in */*) ;; *) _self="$(command -v "$_self")" ;; esac
+_self="${BASH_SOURCE[0]}"
 if _real="$(readlink -f "$_self" 2>/dev/null)" && [ -n "$_real" ]; then
     _self="$_real"
 else
